@@ -869,3 +869,145 @@ function renderHistory() {
 
 // ============================================================
 // WELCOME POPUP
+// ============================================================
+
+function showWelcomePopup(fromHelpButton) {
+  if (!fromHelpButton && localStorage.getItem("hideTutorial") === "1") return;
+
+  dom.popupContent.innerHTML =
+    '<h2>How to use this app</h2>' +
+    '<ul>' +
+      '<li>Pick your plan for today.</li>' +
+      '<li>Each exercise shows <strong>Last Time</strong> on the left, <strong>Today</strong> on the right.</li>' +
+      '<li>Enter Weight, Reps, Grade, and Notes for each set.</li>' +
+      '<li>Tap <strong>Log</strong> when a set is done. You have 3 seconds to undo.</li>' +
+      '<li>Offline? Your sets save and sync when you\'re back online.</li>' +
+    '</ul>' +
+
+    '<h3>Terms</h3>' +
+    '<h4>Rest</h4><p>Time to take between sets. Shown at the top of each lift.</p>' +
+    '<h4>Tempo = W/X/Y/Z</h4><p>W = first motion, X = pause before 2nd motion, Y = second motion, Z = time between reps. If an X is shown, move with speed.</p>' +
+    '<h4>Target Rep Range</h4><p>Use loads that have you failing in this range. Adjust the weight if you fall outside. This is a skill.</p>' +
+    '<h4>Grade</h4><p>Give the grade and explain WHY in the notes. Notes serve as cues for the next session.</p>' +
+
+    '<h3>Coach</h3>' +
+    '<p>I am your Coach. If you need me, call: <a href="tel:9734526850">973.452.6850</a></p>';
+
+  if (state.sessionCount >= TUTORIAL_THRESHOLD) {
+    dom.popupDontShowBtn.classList.remove("hidden");
+  } else {
+    dom.popupDontShowBtn.classList.add("hidden");
+  }
+  dom.welcomePopup.classList.remove("hidden");
+}
+
+function hideWelcomePopup() {
+  dom.welcomePopup.classList.add("hidden");
+}
+
+function dontShowAgain() {
+  localStorage.setItem("hideTutorial", "1");
+  hideWelcomePopup();
+}
+
+// ============================================================
+// DOWNLOAD EMPTY LOG
+// ============================================================
+
+function downloadCsv() {
+  const plan = state.currentPlan;
+  if (!plan) { showToast("Pick a plan first, then download", true); return; }
+  const lines = [];
+  lines.push(["Athlete","Plan","Exercise","Set","Target","Weight","Reps","Grade","Notes"].join(","));
+  if (state.programs[plan]) {
+    state.programs[plan].forEach(function (ex) {
+      ex.sets.forEach(function (s) {
+        lines.push([
+          csv(state.athlete || ""), csv(plan), csv(ex.name), csv(String(s.set)),
+          csv(renderTargetLabel(s)), "", "", "", ""
+        ].join(","));
+      });
+    });
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  triggerDownload(blob, "empty-log-" + (state.athlete || "athlete") + "-" + new Date().toISOString().slice(0,10) + ".csv");
+}
+
+function downloadPdf() {
+  const plan = state.currentPlan;
+  if (!plan || !state.programs[plan]) { showToast("Pick a plan first, then download", true); return; }
+  const w = window.open("", "_blank");
+  let html = '<html><head><title>Empty Log — Plan ' + plan + '</title>';
+  html += '<style>body{font-family:sans-serif;padding:20px;} h1{font-size:18px;} table{width:100%;border-collapse:collapse;margin-top:12px;} th,td{border:1px solid #999;padding:6px;font-size:12px;text-align:left;} th{background:#eee;}</style>';
+  html += '</head><body>';
+  html += '<h1>Empty Log — ' + escapeHtml(state.athlete || "") + ' — Plan ' + plan + '</h1>';
+  html += '<p>Date: ___________________</p>';
+  html += '<table><thead><tr><th>Exercise</th><th>Set</th><th>Target</th><th>Weight</th><th>Reps</th><th>Grade</th><th>Notes</th></tr></thead><tbody>';
+  state.programs[plan].forEach(function (ex) {
+    ex.sets.forEach(function (s, i) {
+      html += '<tr><td>' + (i === 0 ? escapeHtml(ex.name) : '') + '</td><td>' + escapeHtml(String(s.set)) + '</td><td>' + escapeHtml(renderTargetLabel(s)) + '</td><td></td><td></td><td></td><td></td></tr>';
+    });
+  });
+  html += '</tbody></table></body></html>';
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(function () { w.print(); }, 400);
+}
+
+function csv(v) {
+  const s = String(v);
+  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ============================================================
+// REFRESH
+// ============================================================
+
+async function refreshData() {
+  showToast("Refreshing…");
+  if (state.currentPlan) await loadLastTimesForPlan(state.currentPlan);
+  if (!dom.tabHistory.classList.contains("hidden")) await loadAndRenderHistory();
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function sanitizeId(s) {
+  return String(s).replace(/[^a-z0-9]/gi, "_");
+}
+
+function formatDate(yyyymmdd) {
+  const parts = yyyymmdd.split("-");
+  const dt = new Date(parts[0], parseInt(parts[1], 10) - 1, parts[2]);
+  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function showToast(msg, isError) {
+  dom.toast.textContent = msg;
+  dom.toast.classList.remove("hidden", "error", "warn");
+  if (isError === true) dom.toast.classList.add("error");
+  else if (isError === "warn") dom.toast.classList.add("warn");
+  setTimeout(function () { dom.toast.classList.add("hidden"); }, 2400);
+}
