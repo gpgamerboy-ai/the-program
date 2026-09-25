@@ -1,9 +1,8 @@
 // ============================================================
-// COACH VIEW — coach.js (v2)
+// THE PROGRAM — coach.js (v2)
 // ============================================================
 
-const ENDPOINT = "https://script.google.com/macros/s/AKfycbyCv5UAZrMpHJvXlGTbnqsA9wjHWKKR8pL3UQQvETdWQX2AVdpoC_21wnCNG2LVE9WO/exec";
-
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
 const COACH_KEY_STORAGE = "coachKey";
 
 const $ = function (id) { return document.getElementById(id); };
@@ -233,7 +232,7 @@ function renderLogs() {
 }
 
 // ============================================================
-// NETWORK — GET with query params (avoids Google's 405 on POST)
+// NETWORK — GET with query string
 // ============================================================
 
 async function callAPI(payload) {
@@ -242,11 +241,9 @@ async function callAPI(payload) {
     const v = payload[k];
     if (v !== undefined && v !== null) params.append(k, String(v));
   });
-
   const url = ENDPOINT + "?" + params.toString();
   const res = await fetch(url, { method: "GET", redirect: "follow" });
   const text = await res.text();
-
   try {
     return JSON.parse(text);
   } catch (e) {
