@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>Workout Tracker</title>
+  <link rel="stylesheet" href="style2.css" />
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- OFFLINE BANNER                                               -->
+  <!-- ============================================================ -->
+  <div id="offlineBanner" class="offline-banner hidden">
+    Offline — sets will sync when you're back online.
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- LOGIN SCREEN                                                 -->
+  <!-- ============================================================ -->
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <h1>Workout Tracker</h1>
+      <p class="login-sub">Log in to see your workout.</p>
+
+      <label for="loginName">Your name</label>
+      <select id="loginName">
+        <option value="">— pick your name —</option>
+      </select>
+
+      <label for="loginPin">Your PIN</label>
+      <input id="loginPin" type="password" inputmode="numeric" placeholder="PIN" />
+
+      <button id="loginBtn" class="primary-btn">Log In</button>
+      <div id="loginError" class="login-error"></div>
+
+      <p class="login-coach">
+        Coach: <a href="tel:9734526850">973.452.6850</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- MAIN APP                                                     -->
+  <!-- ============================================================ -->
+  <section id="appScreen" class="app-screen hidden">
+
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <h1>Workout Tracker</h1>
+        <div class="header-user">Logged in: <span id="headerName">—</span></div>
+      </div>
+      <div class="header-right">
+        <button id="helpBtn" class="icon-btn" title="Help / Legend">?</button>
+        <button id="refreshBtn" class="icon-btn" title="Refresh">↻</button>
+        <button id="logoutBtn" class="icon-btn" title="Log out">⏻</button>
+      </div>
+    </header>
+
+    <!-- Tabs -->
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="workout">Workout</button>
+      <button class="tab-btn" data-tab="history">History</button>
+    </nav>
+
+    <!-- ============================================================ -->
+    <!-- WORKOUT TAB                                                  -->
+    <!-- ============================================================ -->
+    <main id="tab-workout" class="tab-panel">
+
+      <!-- Plan picker -->
+      <section class="plan-picker">
+        <h2>Pick today's plan</h2>
+        <div class="plan-buttons">
+          <button class="plan-btn" data-plan="A">A — Pull</button>
+          <button class="plan-btn" data-plan="B">B — Push</button>
+          <button class="plan-btn" data-plan="C">C — Legs</button>
+        </div>
+      </section>
+
+      <!-- Exercise cards go here -->
+      <section id="exerciseList"></section>
+
+      <!-- Download section -->
+      <section class="download-section">
+        <h2>Download an empty log</h2>
+        <p class="download-note">
+          If you can't log on your phone, download a blank sheet, print it or
+          fill it in, and bring it to your next session.
+        </p>
+        <div class="download-buttons">
+          <button id="downloadCsvBtn" class="secondary-btn">Download CSV</button>
+          <button id="downloadPdfBtn" class="secondary-btn">Download PDF</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- ============================================================ -->
+    <!-- HISTORY TAB                                                  -->
+    <!-- ============================================================ -->
+    <main id="tab-history" class="tab-panel hidden">
+      <section class="history-header">
+        <h2>Your History</h2>
+        <div class="history-filters">
+          <label>Plan
+            <select id="histPlanFilter">
+              <option value="">All</option>
+              <option value="A">A — Pull</option>
+              <option value="B">B — Push</option>
+              <option value="C">C — Legs</option>
+            </select>
+          </label>
+          <label>Days
+            <select id="histDaysFilter">
+              <option value="30">Last 30 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="365">Last year</option>
+              <option value="99999">All time</option>
+            </select>
+          </label>
+        </div>
+      </section>
+      <section id="historyList"></section>
+    </main>
+
+    <!-- ============================================================ -->
+    <!-- FOOTER                                                       -->
+    <!-- ============================================================ -->
+    <footer class="app-footer">
+      Coach: <a href="tel:9734526850">973.452.6850</a>
+    </footer>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- WELCOME / LEGEND POPUP                                       -->
+  <!-- ============================================================ -->
+  <div id="welcomePopup" class="popup hidden">
+    <div class="popup-card">
+      <button id="popupCloseX" class="popup-x" aria-label="Close">×</button>
+      <div id="popupContent"></div>
+      <div class="popup-actions">
+        <button id="popupHideBtn" class="secondary-btn">Hide this</button>
+        <button id="popupDontShowBtn" class="primary-btn hidden">Don't show again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- LAST-TIME MODAL (per-lift history)                           -->
+  <!-- ============================================================ -->
+  <div id="lastTimeModal" class="popup hidden">
+    <div class="popup-card wide">
+      <button id="lastTimeCloseX" class="popup-x" aria-label="Close">×</button>
+      <div id="lastTimeContent"></div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- TOAST                                                        -->
+  <!-- ============================================================ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app2.js"></script>
+</body>
+</html>
