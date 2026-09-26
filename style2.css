@@ -825,3 +825,94 @@ a:hover { text-decoration: underline; }
   .exercise-card { padding: 20px; }
   .set-compare { gap: 16px; }
 }
+
+
+/* ============================================================
+   v3 additions
+   ============================================================ */
+
+.profile-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #181b22;
+  border-bottom: 1px solid #262a33;
+  align-items: center;
+  font-size: 13px;
+}
+
+.profile-item {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1a1e26;
+  border: 1px solid #262a33;
+  color: #e8e8e8;
+}
+
+.profile-units-btn {
+  background: #2e6cf6;
+  border-color: #2e6cf6;
+  color: #fff;
+  cursor: pointer;
+}
+
+.profile-goals {
+  color: #9aa3b0;
+  font-style: italic;
+  background: transparent;
+  border: none;
+}
+
+.bar-hint-btn {
+  width: 100%;
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px dashed #2c313c;
+  background: transparent;
+  color: #9aa3b0;
+  cursor: pointer;
+  margin: 6px 0;
+}
+
+.bar-hint-btn:active {
+  border-color: #2e6cf6;
+  color: #2e6cf6;
+}
+
+.bar-load-display {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2e6cf6;
+  padding: 6px 0;
+  min-height: 18px;
+}
+
+.log-btn.staging {
+  background: #d29a1f;
+  color: #1a1a1a;
+}
+
+.history-set-row {
+  transition: background 0.15s;
+  border-radius: 4px;
+  padding: 6px 4px;
+}
+
+.history-set-row:active {
+  background: #1a1e26;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.edit-actions button {
+  flex: 1;
+}
+
+
