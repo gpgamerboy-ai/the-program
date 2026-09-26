@@ -1,5 +1,5 @@
 // ============================================================
-// THE PROGRAM — app2.js (v3)
+// THE PROGRAM — app2.js (v3.1 — cancel bug fixed)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
@@ -181,7 +181,7 @@ async function flushOfflineQueue() {
 }
 
 // ============================================================
-// PENDING SETS (staging window across app closes)
+// PENDING SETS
 // ============================================================
 
 function loadPendingSets() {
@@ -203,19 +203,14 @@ function addPendingSet(payload) {
 
 function removePendingSet(payload) {
   const list = loadPendingSets();
-  const filtered = list.filter(function (p) { return !sameSet(p, payload); });
+  const filtered = list.filter(function (p) { return p.pendingId !== payload.pendingId; });
   savePendingSets(filtered);
-}
-
-function sameSet(a, b) {
-  return a.athlete === b.athlete && a.exercise === b.exercise && a.set === b.set && a.pendingId === b.pendingId;
 }
 
 async function flushPendingSets() {
   if (!state.token) return;
   const pending = loadPendingSets();
   if (!pending.length) return;
-
   const remaining = [];
   for (let i = 0; i < pending.length; i++) {
     const item = pending[i];
@@ -573,7 +568,7 @@ function offerBarPreferenceChange() {
 }
 
 // ============================================================
-// LOG A SET — with staging window
+// LOG A SET — with staging window (cancel bug fixed)
 // ============================================================
 
 function handleLogSet(exerciseName, plan, setInfo, idBase) {
@@ -600,38 +595,46 @@ function handleLogSet(exerciseName, plan, setInfo, idBase) {
   };
 
   const btn = $(idBase + "_btn");
-  let cancelled = false;
   let secondsLeft = Math.ceil(STAGE_WINDOW_MS / 1000);
+  let finished = false;
 
   btn.disabled = false;
   btn.classList.add("staging");
   btn.textContent = "Cancel (" + secondsLeft + ")";
 
-  const cancelHandler = function () {
-    cancelled = true;
-    btn.classList.remove("staging");
-    btn.textContent = "Log";
-    showToast("Cancelled — nothing logged");
-  };
-  btn.addEventListener("click", cancelHandler);
-
   const interval = setInterval(function () {
-    if (cancelled) { clearInterval(interval); return; }
+    if (finished) return;
     secondsLeft--;
     if (secondsLeft > 0) {
       btn.textContent = "Cancel (" + secondsLeft + ")";
     } else {
+      finished = true;
       clearInterval(interval);
       btn.removeEventListener("click", cancelHandler);
       btn.classList.remove("staging");
       btn.disabled = true;
       btn.textContent = "...";
-      commitSet(payload, btn, exerciseName, idBase);
+      commitSet(payload, btn, exerciseName);
     }
   }, 1000);
+
+  const cancelHandler = function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (finished) return;
+    finished = true;
+    clearInterval(interval);
+    btn.removeEventListener("click", cancelHandler);
+    btn.classList.remove("staging");
+    btn.disabled = false;
+    btn.textContent = "Log";
+    showToast("Cancelled — nothing logged");
+  };
+
+  btn.addEventListener("click", cancelHandler);
 }
 
-async function commitSet(payload, btn, exerciseName, idBase) {
+async function commitSet(payload, btn, exerciseName) {
   addPendingSet(payload);
 
   if (!navigator.onLine) {
@@ -768,7 +771,7 @@ function switchTab(tabName) {
 }
 
 // ============================================================
-// HISTORY (with edit + delete)
+// HISTORY
 // ============================================================
 
 async function loadAndRenderHistory() {
@@ -837,238 +840,4 @@ function renderHistory() {
       const liftEl = document.createElement("div");
       liftEl.className = "history-lift";
 
-      let html = '<div class="history-lift-name">' + escapeHtml(liftName) + '</div>';
-      liftSets.forEach(function (s) {
-        const line = (s.weight ? s.weight + " lb" : "") + (s.reps ? " x " + s.reps : "");
-        const row = document.createElement("div");
-        row.className = "history-set-row";
-        row.style.cursor = "pointer";
-        row.innerHTML =
-          '<div class="history-set-num">S' + escapeHtml(String(s.set)) + '</div>' +
-          '<div class="history-set-data">' + escapeHtml(line || "—") + '</div>' +
-          '<div class="history-set-grade">' + escapeHtml(s.grade || "") + '</div>' +
-          (s.notes ? '<div class="history-set-notes">"' + escapeHtml(s.notes) + '"</div>' : "");
-        row.addEventListener("click", function () { openEditModal(s); });
-        liftEl.appendChild(row);
-      });
-      liftEl.insertAdjacentHTML("afterbegin", html);
-      body.appendChild(liftEl);
-    });
-
-    el.querySelector(".history-session-head").addEventListener("click", function () {
-      el.classList.toggle("open");
-      body.classList.toggle("hidden");
-    });
-
-    dom.historyList.appendChild(el);
-  });
-}
-
-// ============================================================
-// EDIT MODAL
-// ============================================================
-
-function openEditModal(setRow) {
-  if (!dom.editModal) { showToast("Edit modal not available", true); return; }
-
-  const content = $("editModalContent");
-  content.innerHTML =
-    '<h2>Edit Set</h2>' +
-    '<p style="color:#9aa3b0;font-size:13px;">' + escapeHtml(setRow.exercise) + ' — Set ' + escapeHtml(String(setRow.set)) + '</p>' +
-    '<div class="set-input">' +
-      '<div><label>Weight</label><input type="number" id="editWeight" value="' + escapeHtml(String(setRow.weight || "")) + '" /></div>' +
-      '<div><label>Reps</label><input type="number" id="editReps" value="' + escapeHtml(String(setRow.reps || "")) + '" /></div>' +
-    '</div>' +
-    '<div class="set-input">' +
-      '<div><label>Grade</label><select id="editGrade">' +
-        ['', 'A+','A','A-','B+','B','B-','C+','C','C-','D','F'].map(function (g) {
-          return '<option value="' + g + '"' + (g === setRow.grade ? ' selected' : '') + '>' + (g || '—') + '</option>';
-        }).join('') +
-      '</select></div>' +
-      '<div><label>Notes</label><input type="text" id="editNotes" value="' + escapeHtml(setRow.notes || "") + '" /></div>' +
-    '</div>' +
-    '<div class="edit-actions">' +
-      '<button class="secondary-btn" id="editCancelBtn">Cancel</button>' +
-      '<button class="secondary-btn" id="editDeleteBtn" style="color:#b3402f;border-color:#b3402f;">Delete</button>' +
-      '<button class="primary-btn" id="editSaveBtn">Save</button>' +
-    '</div>';
-
-  dom.editModal.classList.remove("hidden");
-
-  $("editCancelBtn").addEventListener("click", closeEditModal);
-  $("editSaveBtn").addEventListener("click", function () { saveEdit(setRow); });
-  $("editDeleteBtn").addEventListener("click", function () { confirmDelete(setRow); });
-}
-
-function closeEditModal() {
-  if (dom.editModal) dom.editModal.classList.add("hidden");
-}
-
-async function saveEdit(setRow) {
-  const weight = $("editWeight").value;
-  const reps = $("editReps").value;
-  const grade = $("editGrade").value;
-  const notes = $("editNotes").value;
-
-  showToast("Saving…");
-  try {
-    const res = await callAPI({
-      action: "updateSet",
-      token: state.token,
-      timestamp: setRow.iso,
-      weight: weight,
-      reps: reps,
-      grade: grade,
-      notes: notes
-    });
-    if (res && res.ok) {
-      showToast("Updated");
-      closeEditModal();
-      loadAndRenderHistory();
-    } else {
-      showToast((res && res.error) || "Update failed", true);
-    }
-  } catch (e) {
-    showToast("Network error", true);
-  }
-}
-
-async function confirmDelete(setRow) {
-  if (!confirm("Delete this set? This cannot be undone.")) return;
-  try {
-    const res = await callAPI({ action: "deleteSet", token: state.token, timestamp: setRow.iso });
-    if (res && res.ok) {
-      showToast("Deleted");
-      closeEditModal();
-      loadAndRenderHistory();
-    } else {
-      showToast((res && res.error) || "Delete failed", true);
-    }
-  } catch (e) {
-    showToast("Network error", true);
-  }
-}
-
-// ============================================================
-// WELCOME POPUP
-// ============================================================
-
-function showWelcomePopup(fromHelpButton) {
-  if (!fromHelpButton && localStorage.getItem("hideTutorial") === "1") return;
-
-  dom.popupContent.innerHTML =
-    '<h2>How to use this app</h2>' +
-    '<ul>' +
-      '<li>Pick your plan for today.</li>' +
-      '<li>Each exercise shows <strong>Last Time</strong> on the left, <strong>Today</strong> on the right.</li>' +
-      '<li>Enter Weight, Reps, Grade, and Notes for each set.</li>' +
-      '<li>Tap <strong>Log</strong>. You have 3 seconds to cancel before it saves.</li>' +
-      '<li>Need to fix something later? Open History, tap any set to edit or delete.</li>' +
-      '<li>Offline? Your sets save and sync when you\'re back online.</li>' +
-    '</ul>' +
-    '<h3>Terms</h3>' +
-    '<h4>Rest</h4><p>Time between sets. Shown at the top of each lift.</p>' +
-    '<h4>Tempo = W/X/Y/Z</h4><p>W = first motion, X = pause before 2nd motion, Y = second motion, Z = time between reps. If an X is shown, move with speed.</p>' +
-    '<h4>Target Rep Range</h4><p>Use loads that have you failing in this range. Adjust the weight if you fall outside.</p>' +
-    '<h4>Grade</h4><p>Give the grade and explain WHY in the notes. Notes serve as cues for the next session.</p>' +
-    '<h3>Coach</h3>' +
-    '<p>I am your Coach. If you need me, call: <a href="tel:9734526850">973.452.6850</a></p>';
-
-  if (state.sessionCount >= TUTORIAL_THRESHOLD) dom.popupDontShowBtn.classList.remove("hidden");
-  else dom.popupDontShowBtn.classList.add("hidden");
-  dom.welcomePopup.classList.remove("hidden");
-}
-
-function hideWelcomePopup() { dom.welcomePopup.classList.add("hidden"); }
-function dontShowAgain() { localStorage.setItem("hideTutorial", "1"); hideWelcomePopup(); }
-
-// ============================================================
-// DOWNLOAD EMPTY LOG
-// ============================================================
-
-function downloadCsv() {
-  const plan = state.currentPlan;
-  if (!plan) { showToast("Pick a plan first, then download", true); return; }
-  const lines = [];
-  lines.push(["Athlete","Plan","Exercise","Set","Target","Weight","Reps","Grade","Notes"].join(","));
-  if (state.programs[plan]) {
-    state.programs[plan].forEach(function (ex) {
-      ex.sets.forEach(function (s) {
-        lines.push([
-          csv(state.athlete || ""), csv(plan), csv(ex.name), csv(String(s.set)),
-          csv(renderTargetLabel(s)), "", "", "", ""
-        ].join(","));
-      });
-    });
-  }
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  triggerDownload(blob, "empty-log-" + (state.athlete || "athlete") + "-" + new Date().toISOString().slice(0,10) + ".csv");
-}
-
-function downloadPdf() {
-  const plan = state.currentPlan;
-  if (!plan || !state.programs[plan]) { showToast("Pick a plan first, then download", true); return; }
-  const w = window.open("", "_blank");
-  let html = '<html><head><title>Empty Log — Plan ' + plan + '</title>';
-  html += '<style>body{font-family:sans-serif;padding:20px;} h1{font-size:18px;} table{width:100%;border-collapse:collapse;margin-top:12px;} th,td{border:1px solid #999;padding:6px;font-size:12px;text-align:left;} th{background:#eee;}</style>';
-  html += '</head><body>';
-  html += '<h1>Empty Log — ' + escapeHtml(state.athlete || "") + ' — Plan ' + plan + '</h1>';
-  html += '<p>Date: ___________________</p>';
-  html += '<table><thead><tr><th>Exercise</th><th>Set</th><th>Target</th><th>Weight</th><th>Reps</th><th>Grade</th><th>Notes</th></tr></thead><tbody>';
-  state.programs[plan].forEach(function (ex) {
-    ex.sets.forEach(function (s, i) {
-      html += '<tr><td>' + (i === 0 ? escapeHtml(ex.name) : '') + '</td><td>' + escapeHtml(String(s.set)) + '</td><td>' + escapeHtml(renderTargetLabel(s)) + '</td><td></td><td></td><td></td><td></td></tr>';
-    });
-  });
-  html += '</tbody></table></body></html>';
-  w.document.write(html); w.document.close(); w.focus();
-  setTimeout(function () { w.print(); }, 400);
-}
-
-function csv(v) {
-  const s = String(v);
-  if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-  return s;
-}
-
-function triggerDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-// ============================================================
-// REFRESH
-// ============================================================
-
-async function refreshData() {
-  showToast("Refreshing…");
-  if (state.currentPlan) await loadLastTimesForPlan(state.currentPlan);
-  if (!dom.tabHistory.classList.contains("hidden")) await loadAndRenderHistory();
-}
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-function escapeHtml(s) {
-  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-function sanitizeId(s) { return String(s).replace(/[^a-z0-9]/gi, "_"); }
-
-function formatDate(yyyymmdd) {
-  const parts = yyyymmdd.split("-");
-  const dt = new Date(parts[0], parseInt(parts[1], 10) - 1, parts[2]);
-  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function showToast(msg, isError) {
-  dom.toast.textContent = msg;
-  dom.toast.classList.remove("hidden", "error", "warn");
-  if (isError === true) dom.toast.classList.add("error");
-  else if (isError === "warn") dom.toast.classList.add("warn");
-  setTimeout(function () { dom.toast.classList.add("hidden"); }, 2400);
-}
+      const nameEl = document.createElement("div
