@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>Timer</title>
+  <link rel="stylesheet" href="timer.css" />
+</head>
+<body>
+
+  <div id="timerApp" class="timer-app">
+    <div id="phaseBanner" class="phase-banner">Ready</div>
+
+    <div class="timer-body">
+      <div id="timeDisplay" class="time-display">00:00</div>
+      <div id="intervalName" class="interval-name">Get Ready</div>
+      <div id="intervalInfo" class="interval-info"></div>
+      <div id="progressBar" class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+      <div id="roundInfo" class="round-info"></div>
+    </div>
+
+    <div class="timer-controls">
+      <button id="pauseBtn" class="control-btn primary">Pause</button>
+      <button id="skipBtn" class="control-btn">Skip</button>
+      <button id="stopBtn" class="control-btn danger">Stop</button>
+    </div>
+  </div>
+
+  <div id="inputModal" class="input-modal hidden">
+    <div class="input-card">
+      <h2 id="inputPrompt">Enter value</h2>
+      <input id="inputField" type="number" inputmode="numeric" placeholder="0" />
+      <button id="inputSubmit" class="primary-btn">Save & Continue</button>
+    </div>
+  </div>
+
+  <div id="completeModal" class="input-modal hidden">
+    <div class="input-card">
+      <h2>Timer Complete</h2>
+      <p id="completeSummary"></p>
+      <button id="completeDone" class="primary-btn">Done</button>
+    </div>
+  </div>
+
+  <div id="errorMsg" class="error-msg hidden"></div>
+
+  <script src="timer.js"></script>
+</body>
+</html>
