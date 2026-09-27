@@ -1,8 +1,8 @@
 // ============================================================
-// THE PROGRAM — coach.js (v2)
+// COACH VIEW — coach.js (v3, corrected endpoint)
 // ============================================================
 
-const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
 const COACH_KEY_STORAGE = "coachKey";
 
 const $ = function (id) { return document.getElementById(id); };
@@ -12,10 +12,6 @@ let state = {
   athletes: [],
   logs: []
 };
-
-// ============================================================
-// STARTUP
-// ============================================================
 
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
@@ -76,10 +72,6 @@ function showCoachApp() {
   $("coachApp").classList.remove("hidden");
 }
 
-// ============================================================
-// DATA LOADING
-// ============================================================
-
 async function loadAll() {
   await loadAthletes();
   await loadLogs();
@@ -123,10 +115,6 @@ async function loadLogs() {
     showToast("Network error: " + e.message, true);
   }
 }
-
-// ============================================================
-// RENDER — ATHLETES
-// ============================================================
 
 function renderAthletes() {
   const grid = $("athleteGrid");
@@ -204,10 +192,6 @@ async function resetTutorial(athlete) {
   }
 }
 
-// ============================================================
-// RENDER — LOGS
-// ============================================================
-
 function renderLogs() {
   const tbody = $("logTableBody");
   if (!state.logs.length) {
@@ -231,10 +215,6 @@ function renderLogs() {
   });
 }
 
-// ============================================================
-// NETWORK — GET with query string
-// ============================================================
-
 async function callAPI(payload) {
   const params = new URLSearchParams();
   Object.keys(payload).forEach(function (k) {
@@ -250,10 +230,6 @@ async function callAPI(payload) {
     return { ok: false, error: "Bad response: " + text.slice(0, 120) };
   }
 }
-
-// ============================================================
-// HELPERS
-// ============================================================
 
 function escapeHtml(s) {
   return String(s)
