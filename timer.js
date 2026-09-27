@@ -1,71 +1,29 @@
 // ============================================================
-// TIMER PLAYER — v2 with Seconds Pro layout + tap-to-jump
+// TIMER BUILDER — v3 (copy/paste + drag reorder)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
-
-const state = {
-  timerId: null,
-  timer: null,
-  token: null,
-  athlete: null,
-  phaseIndex: 0,
-  totalRounds: 1,
-  timeLeft: 0,
-  isPaused: false,
-  isRunning: false,
-  isLocked: false,
-  structure: [],
-  intervalHandle: null,
-  inputPrompts: [],
-  collectedInputs: [],
-  pendingInput: null,
-  completedRounds: 0,
-  hasStarted: false,
-  startTime: null,
-  totalDuration: 0,
-  scrollLocked: false
-};
+const COACH_KEY_STORAGE = "coachKey";
 
 const $ = function (id) { return document.getElementById(id); };
 
-const dom = {
-  startScreen: $("startScreen"),
-  startTitle: $("startTitle"),
-  startSubtitle: $("startSubtitle"),
-  startBtn: $("startBtn"),
-  timerApp: $("timerApp"),
-  masterClock: $("masterClock"),
-  statElapsed: $("statElapsed"),
-  statInterval: $("statInterval"),
-  statRemaining: $("statRemaining"),
-  intervalScroll: $("intervalScroll"),
-  intervalList: $("intervalList"),
-  hamburgerBtn: $("hamburgerBtn"),
-  pauseBtn: $("pauseBtn"),
-  pauseIcon: $("pauseIcon"),
-  playIcon: $("playIcon"),
-  lockBtn: $("lockBtn"),
-  lockOpenIcon: $("lockOpenIcon"),
-  lockClosedIcon: $("lockClosedIcon"),
-  restartBtn: $("restartBtn"),
-  exitBtn: $("exitBtn"),
-  lockOverlay: $("lockOverlay"),
-  unlockBtn: $("unlockBtn"),
-  hamburgerMenu: $("hamburgerMenu"),
-  menuExit: $("menuExit"),
-  menuReset: $("menuReset"),
-  menuLock: $("menuLock"),
-  menuBack: $("menuBack"),
-  inputModal: $("inputModal"),
-  inputPrompt: $("inputPrompt"),
-  inputField: $("inputField"),
-  inputSubmit: $("inputSubmit"),
-  completeModal: $("completeModal"),
-  completeSummary: $("completeSummary"),
-  completeDone: $("completeDone"),
-  errorMsg: $("errorMsg")
+const state = {
+  coachKey: null,
+  timers: [],
+  editingTimer: null,
+  editingIntervalIndex: -1,
+  editingCircuit: null,
+  editingCircuitIndex: -1,
+  quickDurationValue: null,
+  clipboard: null,     // copied interval or circuit
+  dragSourceIndex: -1, // index being dragged
+  dragTargetIndex: -1  // index being dragged over
 };
+
+const COLORS = [
+  "#b8f52c", "#ff3b30", "#c0c0c0", "#ff2cd9", "#00e5ff", "#ff9f1c",
+  "#2e6cf6", "#9b59b6", "#f1c40f", "#e67e22", "#1abc9c", "#34495e"
+];
 
 // ============================================================
 // STARTUP
@@ -73,526 +31,761 @@ const dom = {
 
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
-  loadTimerFromURL();
+  const saved = localStorage.getItem(COACH_KEY_STORAGE);
+  if (saved) {
+    state.coachKey = saved;
+    showList();
+    loadTimers();
+  }
+  renderColorPicker();
 });
 
 function wireEvents() {
-  dom.startBtn.addEventListener("click", handleStart);
-  dom.pauseBtn.addEventListener("click", togglePause);
-  dom.hamburgerBtn.addEventListener("click", openMenu);
-  dom.lockBtn.addEventListener("click", toggleLock);
-  dom.restartBtn.addEventListener("click", confirmRestart);
-  dom.exitBtn.addEventListener("click", confirmExit);
-  dom.unlockBtn.addEventListener("click", beginUnlockHold);
-  dom.unlockBtn.addEventListener("touchend", cancelUnlockHold);
-  dom.unlockBtn.addEventListener("mouseup", cancelUnlockHold);
-  dom.unlockBtn.addEventListener("mouseleave", cancelUnlockHold);
-  dom.menuExit.addEventListener("click", confirmExit);
-  dom.menuReset.addEventListener("click", confirmRestart);
-  dom.menuLock.addEventListener("click", lockFromMenu);
-  dom.menuBack.addEventListener("click", closeMenu);
-  dom.inputSubmit.addEventListener("click", submitInput);
-  dom.completeDone.addEventListener("click", function () {
-    dom.completeModal.classList.add("hidden");
-    if (window.history.length > 1) window.history.back();
+  $("keyBtn").addEventListener("click", handleKeySubmit);
+  $("keyInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") handleKeySubmit();
   });
+  $("newTimerBtn").addEventListener("click", createNewTimer);
+  $("signOutBtn").addEventListener("click", handleSignOut);
+  $("backBtn").addEventListener("click", backToList);
+  $("saveTimerBtn").addEventListener("click", saveTimer);
+  $("addIntervalBtn").addEventListener("click", openNewIntervalModal);
+  $("addCircuitBtn").addEventListener("click", openNewCircuitModal);
+  $("intervalClose").addEventListener("click", closeIntervalModal);
+  $("intervalSave").addEventListener("click", saveIntervalFromModal);
+  document.querySelectorAll(".chip[data-sec]").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      $("ivDuration").value = chip.dataset.sec;
+      state.quickDurationValue = chip.dataset.sec;
+      document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
+      chip.classList.add("selected");
+    });
+  });
+  $("circuitClose").addEventListener("click", closeCircuitModal);
+  $("circuitSave").addEventListener("click", saveCircuitFromModal);
+  $("circuitAddInterval").addEventListener("click", addInnerInterval);
 }
 
 // ============================================================
-// LOAD TIMER
+// KEY GATE
 // ============================================================
 
-function loadTimerFromURL() {
-  const params = new URLSearchParams(window.location.search);
-  state.timerId = params.get("id");
-  state.token = params.get("token") || localStorage.getItem("sessionToken");
-  state.athlete = params.get("athlete") || localStorage.getItem("lastAthlete");
-
-  if (!state.timerId) { showError("No timer ID provided. Use ?id=T001"); return; }
-  if (!state.token) { showError("No session token. Log in to the athlete app first."); return; }
-  fetchTimer();
-}
-
-async function fetchTimer() {
+async function handleKeySubmit() {
+  const key = $("keyInput").value.trim();
+  if (!key) return;
   try {
-    const params = new URLSearchParams();
-    params.append("action", "getTimer");
-    params.append("token", state.token);
-    params.append("timerId", state.timerId);
-    const res = await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" });
-    const data = await res.json();
-    if (!data || !data.ok) {
-      showError((data && data.error) || "Could not load timer");
+    const res = await callAPI({ action: "coachAthletes", key: key });
+    if (!res || !res.ok) {
+      $("keyErr").textContent = (res && res.error) || "Invalid key";
       return;
     }
-    state.timer = data.timer;
-    dom.startTitle.textContent = state.timer.timerName || "Timer";
-    dom.startSubtitle.textContent = "Tap START to begin";
+    state.coachKey = key;
+    localStorage.setItem(COACH_KEY_STORAGE, key);
+    $("keyErr").textContent = "";
+    showList();
+    loadTimers();
   } catch (e) {
-    showError("Network error loading timer");
+    $("keyErr").textContent = "Network error";
   }
 }
 
-// ============================================================
-// CIRCUIT ENGINE
-// ============================================================
+function handleSignOut() {
+  localStorage.removeItem(COACH_KEY_STORAGE);
+  state.coachKey = null;
+  $("keyGate").classList.remove("hidden");
+  $("listView").classList.add("hidden");
+  $("editorView").classList.add("hidden");
+  $("keyInput").value = "";
+}
 
-function expandStructure(raw) {
-  const flat = [];
-  (raw || []).forEach(function (iv) {
-    if (iv.type === "circuit") {
-      const rounds = parseInt(iv.rounds, 10) || 1;
-      const inner = iv.intervals || [];
-      for (let r = 1; r <= rounds; r++) {
-        inner.forEach(function (innerIv) {
-          const copy = Object.assign({}, innerIv);
-          copy.roundNumber = r;
-          copy.totalRoundCount = rounds;
-          flat.push(copy);
-        });
-        if (iv.afterEach && r < rounds) flat.push(Object.assign({}, iv.afterEach));
-      }
-      if (iv.afterCircuit) flat.push(Object.assign({}, iv.afterCircuit));
-    } else {
-      flat.push(Object.assign({}, iv));
-    }
-  });
-  return flat;
+function showList() {
+  $("keyGate").classList.add("hidden");
+  $("listView").classList.remove("hidden");
+  $("editorView").classList.add("hidden");
+}
+
+function showEditor() {
+  $("keyGate").classList.add("hidden");
+  $("listView").classList.add("hidden");
+  $("editorView").classList.remove("hidden");
 }
 
 // ============================================================
-// START TIMER
+// LOAD TIMERS
 // ============================================================
 
-function handleStart() {
-  state.hasStarted = true;
-  state.startTime = Date.now();
+async function loadTimers() {
+  const list = $("timerList");
+  list.innerHTML = '<div class="empty-state">Loading timers…</div>';
 
-  dom.startScreen.classList.add("hidden");
-  dom.timerApp.classList.remove("hidden");
+  try {
+    const res = await callAPI({ action: "getTimersByKey", key: state.coachKey });
+    if (!res || !res.ok) {
+      list.innerHTML = '<div class="empty-state">Could not load timers.</div>';
+      return;
+    }
+    state.timers = res.timers || [];
+    renderTimerList();
+  } catch (e) {
+    list.innerHTML = '<div class="empty-state">Network error loading timers.</div>';
+  }
+}
 
-  const t = state.timer;
-
-  let rawStructure = [];
-  try { rawStructure = JSON.parse(t.structure || "[]"); } catch (e) { rawStructure = []; }
-  state.structure = expandStructure(rawStructure);
-
-  try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); } catch (e) { state.inputPrompts = []; }
-
-  if (!state.structure.length) {
-    showError("Timer has no intervals defined");
+function renderTimerList() {
+  const list = $("timerList");
+  if (!state.timers.length) {
+    list.innerHTML = '<div class="empty-state">No timers yet. Tap "New Timer" to create one.</div>';
     return;
   }
 
-  state.totalDuration = state.structure.reduce(function (sum, iv) {
-    return sum + (parseInt(iv.duration, 10) || 0);
-  }, 0);
-
-  const workIntervals = state.structure.filter(function (iv) { return iv.type === "work"; });
-  state.totalRounds = workIntervals.length || 1;
-
-  state.phaseIndex = 0;
-  state.completedRounds = 0;
-
-  renderIntervalList();
-
-  speak(t.ttsTitle || t.timerName || "Starting timer");
-
-  setTimeout(function () { beginInterval(0); }, 3000);
-}
-
-// ============================================================
-// INTERVAL CONTROL
-// ============================================================
-
-function beginInterval(index) {
-  if (index >= state.structure.length) { completeTimer(); return; }
-
-  const iv = state.structure[index];
-  state.phaseIndex = index;
-  state.timeLeft = parseInt(iv.duration, 10) || 0;
-  state.isRunning = true;
-  state.isPaused = false;
-
-  // Reset pause/play icon
-  dom.pauseIcon.classList.remove("hidden");
-  dom.playIcon.classList.add("hidden");
-
-  document.body.className = "phase-" + (iv.type || "work");
-  updateMasterClock();
-  updateStats();
-  updateIntervalList();
-  scrollToCurrent();
-
-  speak(iv.name || iv.type);
-
-  const nextIv = state.structure[index + 1];
-  if (nextIv && shouldCue("nextUp")) {
-    setTimeout(function () {
-      speak("Next: " + (nextIv.name || nextIv.type));
-    }, 1500);
-  }
-
-  startTicking();
-}
-
-function startTicking() {
-  if (state.intervalHandle) clearInterval(state.intervalHandle);
-
-  state.intervalHandle = setInterval(function () {
-    if (state.isPaused) return;
-
-    state.timeLeft--;
-
-    const iv = state.structure[state.phaseIndex];
-    const halfwayThreshold = Math.floor((parseInt(iv.duration, 10) || 0) / 2);
-    if (state.timeLeft === halfwayThreshold && shouldCue("halfway")) speak("Halfway");
-    if (state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) speak(String(state.timeLeft));
-
-    if (state.timeLeft <= 0) {
-      clearInterval(state.intervalHandle);
-      state.isRunning = false;
-      endInterval();
-      return;
-    }
-
-    updateMasterClock();
-    updateStats();
-  }, 1000);
-}
-
-function endInterval() {
-  const iv = state.structure[state.phaseIndex];
-  if (iv.type === "work") state.completedRounds++;
-
-  const prompt = state.inputPrompts.find(function (p) {
-    return p.atEnd && (p.afterInterval === state.phaseIndex + 1 || p.afterType === iv.type);
-  });
-
-  if (prompt) {
-    state.pendingInput = prompt;
-    showInputPrompt(prompt);
-    return;
-  }
-  nextInterval();
-}
-
-function nextInterval() {
-  const next = state.phaseIndex + 1;
-  if (next >= state.structure.length) { completeTimer(); }
-  else { beginInterval(next); }
-}
-
-// ============================================================
-// JUMP TO INTERVAL (tap a card)
-// ============================================================
-
-function jumpToInterval(index) {
-  // If locked, ignore taps
-  if (state.isLocked) return;
-
-  // Confirm if there's meaningful work in progress (past the first 3 seconds)
-  const iv = state.structure[state.phaseIndex];
-  const elapsedInCurrent = iv ? (parseInt(iv.duration, 10) - state.timeLeft) : 0;
-  const meaningful = elapsedInCurrent > 3 && index !== state.phaseIndex;
-
-  if (meaningful) {
-    if (!confirm("Jump to this interval? Current interval will be skipped.")) {
-      return;
-    }
-  }
-
-  // Stop the current tick
-  if (state.intervalHandle) clearInterval(state.intervalHandle);
-  state.isRunning = false;
-  state.isPaused = false;
-
-  // Reset pause/play icon in case we were paused
-  dom.pauseIcon.classList.remove("hidden");
-  dom.playIcon.classList.add("hidden");
-
-  // Reset completedRounds based on how many work intervals are being skipped
-  let workCount = 0;
-  for (let i = 0; i < index; i++) {
-    if (state.structure[i].type === "work") workCount++;
-  }
-  state.completedRounds = workCount;
-
-  // Jump
-  beginInterval(index);
-}
-
-// ============================================================
-// RENDERING
-// ============================================================
-
-function renderIntervalList() {
-  dom.intervalList.innerHTML = "";
-
-  state.structure.forEach(function (iv, i) {
+  list.innerHTML = "";
+  state.timers.forEach(function (timer) {
     const card = document.createElement("div");
-    card.className = "interval-card";
-    card.dataset.index = i;
-    card.dataset.type = iv.type || "work";
-    card.style.cursor = "pointer";
+    card.className = "timer-card";
 
-    const color = iv.color || colorForType(iv.type);
-    card.style.background = color;
-
-    const label = getLabelForPosition(i);
-    const name = iv.name || iv.type || "";
-    const dur = formatDuration(parseInt(iv.duration, 10) || 0);
+    const intervalCount = parseIntervalCount(timer.structure);
 
     card.innerHTML =
-      '<div class="iv-label">' + escapeHtml(label) + '</div>' +
-      '<div class="iv-name">' + escapeHtml(name) + '</div>' +
-      '<div class="iv-duration">' + dur + '</div>';
+      '<div class="timer-card-info">' +
+        '<div class="timer-card-name">' + escapeHtml(timer.timerName || "(unnamed)") + '</div>' +
+        '<div class="timer-card-meta">' +
+          escapeHtml(timer.timerId) + ' • ' +
+          intervalCount + ' interval' + (intervalCount === 1 ? '' : 's') + ' • ' +
+          formatDuration(timer.totalDuration || 0) +
+        '</div>' +
+      '</div>' +
+      '<button class="timer-card-delete" data-id="' + escapeHtml(timer.timerId) + '">×</button>';
 
-    card.addEventListener("click", function () {
-      jumpToInterval(i);
+    card.querySelector(".timer-card-info").addEventListener("click", function () {
+      editExistingTimer(timer);
     });
 
-    dom.intervalList.appendChild(card);
+    card.querySelector(".timer-card-delete").addEventListener("click", function (e) {
+      e.stopPropagation();
+      deleteTimer(timer.timerId);
+    });
+
+    list.appendChild(card);
   });
 }
 
-function updateIntervalList() {
-  const cards = dom.intervalList.querySelectorAll(".interval-card");
-  cards.forEach(function (card, i) {
-    card.classList.remove("current", "next", "upcoming", "past");
+function parseIntervalCount(structureJson) {
+  try {
+    const raw = JSON.parse(structureJson || "[]");
+    return raw.length;
+  } catch (e) { return 0; }
+}
 
-    if (i < state.phaseIndex) card.classList.add("past");
-    else if (i === state.phaseIndex) card.classList.add("current");
-    else if (i === state.phaseIndex + 1) card.classList.add("next");
-    else card.classList.add("upcoming");
+// ============================================================
+// NEW / EDIT TIMER
+// ============================================================
 
-    // Update label text
-    const label = card.querySelector(".iv-label");
-    if (label) label.textContent = getLabelForPosition(i);
+function createNewTimer() {
+  state.editingTimer = {
+    timerId: "",
+    timerName: "",
+    timerType: "intervals",
+    totalDuration: 0,
+    structure: [],
+    ttsTitle: "",
+    ttsCues: { halfway: true, countdown3s: true, nextUp: true },
+    defaultColors: {},
+    requiresInput: false,
+    inputPrompts: [],
+    musicTrack: "",
+    notes: ""
+  };
+  openEditor();
+}
+
+function editExistingTimer(timer) {
+  let structure = [];
+  let cues = { halfway: true, countdown3s: true, nextUp: true };
+  let prompts = [];
+
+  try { structure = JSON.parse(timer.structure || "[]"); } catch (e) {}
+  try { cues = JSON.parse(timer.ttsCues || "{}"); } catch (e) {}
+  try { prompts = JSON.parse(timer.inputPrompts || "[]"); } catch (e) {}
+
+  state.editingTimer = {
+    timerId: timer.timerId,
+    timerName: timer.timerName,
+    timerType: timer.timerType,
+    totalDuration: timer.totalDuration,
+    structure: structure,
+    ttsTitle: timer.ttsTitle || "",
+    ttsCues: cues,
+    defaultColors: {},
+    requiresInput: timer.requiresInput || false,
+    inputPrompts: prompts,
+    musicTrack: timer.musicTrack || "",
+    notes: timer.notes || ""
+  };
+  openEditor();
+}
+
+function openEditor() {
+  const t = state.editingTimer;
+
+  $("editorTitle").textContent = t.timerId ? "Edit Timer" : "New Timer";
+  $("timerName").value = t.timerName || "";
+  $("timerType").value = t.timerType || "intervals";
+  $("ttsTitle").value = t.ttsTitle || "";
+  $("timerNotes").value = t.notes || "";
+  $("cueHalfway").checked = t.ttsCues.halfway !== false;
+  $("cueCountdown").checked = t.ttsCues.countdown3s !== false;
+  $("cueNextUp").checked = t.ttsCues.nextUp !== false;
+
+  renderIntervalEditorList();
+  showEditor();
+}
+
+function backToList() {
+  state.editingTimer = null;
+  state.clipboard = null;
+  showList();
+  loadTimers();
+}
+
+// ============================================================
+// RENDER INTERVAL EDITOR LIST
+// ============================================================
+
+function renderIntervalEditorList() {
+  const t = state.editingTimer;
+  const list = $("intervalList");
+
+  if (!t.structure.length) {
+    list.innerHTML = '<div class="empty-state">No intervals yet. Add one.</div>';
+    return;
+  }
+
+  list.innerHTML = "";
+
+  // Paste button at top if clipboard exists
+  if (state.clipboard) {
+    const pasteBar = document.createElement("div");
+    pasteBar.className = "paste-bar";
+    pasteBar.innerHTML =
+      '<span class="paste-label">Copied: ' + escapeHtml(state.clipboard.name || state.clipboard.type) + '</span>' +
+      '<button class="paste-btn">Paste Here</button>' +
+      '<button class="clear-clip-btn">Clear</button>';
+
+    pasteBar.querySelector(".paste-btn").addEventListener("click", function () {
+      pasteAt(0);
+    });
+    pasteBar.querySelector(".clear-clip-btn").addEventListener("click", function () {
+      state.clipboard = null;
+      renderIntervalEditorList();
+    });
+
+    list.appendChild(pasteBar);
+  }
+
+  t.structure.forEach(function (iv, i) {
+    list.appendChild(renderIntervalRow(iv, i));
   });
 }
 
-function scrollToCurrent() {
-  if (state.scrollLocked || state.isLocked) return;
-  const currentCard = dom.intervalList.querySelector(".interval-card.current");
-  if (!currentCard) return;
+function renderIntervalRow(iv, index) {
+  const row = document.createElement("div");
+  row.className = "interval-row";
+  if (iv.type === "circuit") row.classList.add("is-circuit");
+  row.dataset.index = index;
+  row.draggable = false;
 
-  const scrollBox = dom.intervalScroll;
-  const cardTop = currentCard.offsetTop;
-  const cardHeight = currentCard.offsetHeight;
-  const boxHeight = scrollBox.clientHeight;
+  const color = iv.color || (iv.type === "circuit" ? "#2e6cf6" : "#b8f52c");
+  const isCircuit = iv.type === "circuit";
 
-  const targetScroll = cardTop - (boxHeight / 2) + (cardHeight / 2);
+  const name = isCircuit
+    ? (iv.name || "Circuit")
+    : (iv.name || iv.type || "Interval");
 
-  scrollBox.scrollTo({ top: targetScroll, behavior: "smooth" });
+  const meta = isCircuit
+    ? iv.rounds + " rounds × " + (iv.intervals || []).length + " intervals"
+    : formatDuration(iv.duration || 0) + " • " + (iv.type || "work");
+
+  row.innerHTML =
+    '<div class="drag-handle" title="Drag to reorder">⋮⋮</div>' +
+    '<div class="interval-swatch" style="background:' + color + '"></div>' +
+    '<div class="interval-info">' +
+      '<div class="interval-name-row">' + escapeHtml(name) + '</div>' +
+      '<div class="interval-meta">' + escapeHtml(meta) + '</div>' +
+    '</div>' +
+    '<div class="interval-row-actions">' +
+      '<button class="interval-copy-btn" data-act="copy" data-idx="' + index + '" title="Copy">📋</button>' +
+      '<button class="interval-move-btn" data-act="up" data-idx="' + index + '">↑</button>' +
+      '<button class="interval-move-btn" data-act="down" data-idx="' + index + '">↓</button>' +
+      '<button class="interval-delete-btn" data-act="del" data-idx="' + index + '">×</button>' +
+    '</div>';
+
+  row.querySelector(".interval-info").addEventListener("click", function () {
+    if (isCircuit) openCircuitModal(index);
+    else openIntervalModal(index);
+  });
+
+  row.querySelectorAll("button[data-act]").forEach(function (btn) {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      const act = btn.dataset.act;
+      const idx = parseInt(btn.dataset.idx, 10);
+      if (act === "up") moveInterval(idx, -1);
+      else if (act === "down") moveInterval(idx, 1);
+      else if (act === "del") deleteInterval(idx);
+      else if (act === "copy") copyInterval(idx);
+    });
+  });
+
+  // Drag to reorder
+  attachDragHandlers(row, index);
+
+  return row;
 }
 
-function getLabelForPosition(i) {
-  if (i < state.phaseIndex) return "PAST";
-  if (i === state.phaseIndex) return "CURRENT INTERVAL";
-  if (i === state.phaseIndex + 1) return "UP NEXT";
-  return "UPCOMING";
+function attachDragHandlers(row, index) {
+  const handle = row.querySelector(".drag-handle");
+
+  handle.addEventListener("mousedown", startDrag);
+  handle.addEventListener("touchstart", startDrag, { passive: false });
+
+  function startDrag(e) {
+    e.preventDefault();
+    row.draggable = true;
+    state.dragSourceIndex = index;
+    row.classList.add("dragging");
+  }
+
+  row.addEventListener("dragstart", function (e) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+    state.dragSourceIndex = index;
+    row.classList.add("dragging");
+  });
+
+  row.addEventListener("dragend", function () {
+    row.classList.remove("dragging");
+    row.draggable = false;
+    clearDragHints();
+    state.dragSourceIndex = -1;
+    state.dragTargetIndex = -1;
+  });
+
+  row.addEventListener("dragover", function (e) {
+    if (state.dragSourceIndex < 0 || state.dragSourceIndex === index) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+
+    const rect = row.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const before = e.clientY < midpoint;
+
+    clearDragHints();
+    row.classList.add(before ? "drag-over-top" : "drag-over-bottom");
+    state.dragTargetIndex = before ? index : index + 1;
+  });
+
+  row.addEventListener("drop", function (e) {
+    e.preventDefault();
+    if (state.dragTargetIndex < 0) return;
+    performDragReorder(state.dragSourceIndex, state.dragTargetIndex);
+  });
+}
+
+function clearDragHints() {
+  document.querySelectorAll(".interval-row").forEach(function (r) {
+    r.classList.remove("drag-over-top", "drag-over-bottom");
+  });
+}
+
+function performDragReorder(fromIndex, toIndex) {
+  const arr = state.editingTimer.structure;
+  if (fromIndex < 0 || fromIndex >= arr.length) return;
+
+  const moved = arr.splice(fromIndex, 1)[0];
+  if (toIndex > fromIndex) toIndex--;
+  arr.splice(toIndex, 0, moved);
+
+  state.dragSourceIndex = -1;
+  state.dragTargetIndex = -1;
+  renderIntervalEditorList();
 }
 
 // ============================================================
-// MASTER CLOCK + STATS
+// COPY / PASTE
 // ============================================================
 
-function updateMasterClock() {
-  dom.masterClock.textContent = formatDuration(state.timeLeft);
+function copyInterval(index) {
+  const source = state.editingTimer.structure[index];
+  // Deep copy so editing the copy doesn't affect the source
+  state.clipboard = JSON.parse(JSON.stringify(source));
+  showToast("Copied: " + (state.clipboard.name || state.clipboard.type));
+  renderIntervalEditorList();
 }
 
-function updateStats() {
-  const elapsed = state.startTime
-    ? Math.floor((Date.now() - state.startTime) / 1000)
-    : 0;
-
-  const totalIntervals = state.structure.length;
-  const currentIntervalNum = state.phaseIndex + 1;
-
-  const remainingTotal =
-    state.timeLeft +
-    state.structure.slice(state.phaseIndex + 1).reduce(function (sum, iv) {
-      return sum + (parseInt(iv.duration, 10) || 0);
-    }, 0);
-
-  dom.statElapsed.textContent = formatDuration(elapsed);
-  dom.statInterval.textContent = currentIntervalNum + "/" + totalIntervals;
-  dom.statRemaining.textContent = formatDuration(remainingTotal);
+function pasteAt(insertIndex) {
+  if (!state.clipboard) return;
+  const copy = JSON.parse(JSON.stringify(state.clipboard));
+  state.editingTimer.structure.splice(insertIndex, 0, copy);
+  renderIntervalEditorList();
+  showToast("Pasted");
 }
 
 // ============================================================
-// CONTROLS
+// MOVE / DELETE
 // ============================================================
 
-function togglePause() {
-  state.isPaused = !state.isPaused;
-  if (state.isPaused) {
-    dom.pauseIcon.classList.add("hidden");
-    dom.playIcon.classList.remove("hidden");
-    speak("Paused");
+function moveInterval(index, direction) {
+  const arr = state.editingTimer.structure;
+  const newIdx = index + direction;
+  if (newIdx < 0 || newIdx >= arr.length) return;
+  const temp = arr[index];
+  arr[index] = arr[newIdx];
+  arr[newIdx] = temp;
+  renderIntervalEditorList();
+}
+
+function deleteInterval(index) {
+  if (!confirm("Delete this interval?")) return;
+  state.editingTimer.structure.splice(index, 1);
+  renderIntervalEditorList();
+}
+
+// ============================================================
+// INTERVAL MODAL
+// ============================================================
+
+function openNewIntervalModal() {
+  state.editingIntervalIndex = -1;
+  $("intervalModalTitle").textContent = "Add Interval";
+  $("ivName").value = "";
+  $("ivType").value = "work";
+  $("ivDuration").value = "";
+  $("ivColorCustom").value = "";
+  state.quickDurationValue = null;
+  document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
+  selectColorSwatch("#b8f52c");
+  $("intervalModal").classList.remove("hidden");
+}
+
+function openIntervalModal(index) {
+  const iv = state.editingTimer.structure[index];
+  state.editingIntervalIndex = index;
+  $("intervalModalTitle").textContent = "Edit Interval";
+  $("ivName").value = iv.name || "";
+  $("ivType").value = iv.type || "work";
+  $("ivDuration").value = iv.duration || "";
+  $("ivColorCustom").value = "";
+  document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
+  if (iv.color) selectColorSwatch(iv.color);
+  else selectColorSwatch("#b8f52c");
+  $("intervalModal").classList.remove("hidden");
+}
+
+function closeIntervalModal() {
+  $("intervalModal").classList.add("hidden");
+  state.editingIntervalIndex = -1;
+}
+
+function saveIntervalFromModal() {
+  const name = $("ivName").value.trim();
+  const type = $("ivType").value;
+  const duration = parseInt($("ivDuration").value, 10);
+  const color = $("ivColorCustom").value.trim() || getSelectedColor() || "#b8f52c";
+
+  if (!name) { showToast("Give the interval a name", true); return; }
+  if (!duration || duration < 1) { showToast("Set a duration", true); return; }
+
+  const newInterval = {
+    name: name,
+    type: type,
+    duration: duration,
+    color: color
+  };
+
+  if (state.editingIntervalIndex >= 0) {
+    state.editingTimer.structure[state.editingIntervalIndex] = newInterval;
   } else {
-    dom.pauseIcon.classList.remove("hidden");
-    dom.playIcon.classList.add("hidden");
-    speak("Resume");
+    state.editingTimer.structure.push(newInterval);
   }
+
+  closeIntervalModal();
+  renderIntervalEditorList();
 }
 
-function confirmRestart() {
-  if (confirm("Restart timer from the beginning?")) {
-    if (state.intervalHandle) clearInterval(state.intervalHandle);
-    state.phaseIndex = 0;
-    state.completedRounds = 0;
-    state.isPaused = false;
-    state.isRunning = false;
-    state.startTime = Date.now();
-    closeMenu();
-    beginInterval(0);
+// ============================================================
+// COLOR PICKER
+// ============================================================
+
+function renderColorPicker() {
+  const picker = $("colorPicker");
+  picker.innerHTML = "";
+  COLORS.forEach(function (color) {
+    const swatch = document.createElement("div");
+    swatch.className = "color-swatch";
+    swatch.style.background = color;
+    swatch.dataset.color = color;
+    swatch.addEventListener("click", function () {
+      selectColorSwatch(color);
+      $("ivColorCustom").value = "";
+    });
+    picker.appendChild(swatch);
+  });
+}
+
+function selectColorSwatch(color) {
+  document.querySelectorAll(".color-swatch").forEach(function (s) {
+    s.classList.toggle("selected", s.dataset.color === color);
+  });
+}
+
+function getSelectedColor() {
+  const sel = document.querySelector(".color-swatch.selected");
+  return sel ? sel.dataset.color : null;
+}
+
+// ============================================================
+// CIRCUIT MODAL
+// ============================================================
+
+function openNewCircuitModal() {
+  state.editingCircuitIndex = -1;
+  state.editingCircuit = {
+    type: "circuit",
+    name: "",
+    rounds: 8,
+    intervals: [],
+    afterCircuit: null
+  };
+  $("circuitName").value = "";
+  $("circuitRounds").value = 8;
+  $("circuitAfterEach").value = "";
+  $("circuitAfterCircuit").value = "";
+  renderCircuitInnerList();
+  $("circuitModal").classList.remove("hidden");
+}
+
+function openCircuitModal(index) {
+  const c = state.editingTimer.structure[index];
+  state.editingCircuitIndex = index;
+  state.editingCircuit = {
+    type: "circuit",
+    name: c.name || "",
+    rounds: c.rounds || 1,
+    intervals: c.intervals || [],
+    afterCircuit: c.afterCircuit || null
+  };
+  $("circuitName").value = c.name || "";
+  $("circuitRounds").value = c.rounds || 1;
+  $("circuitAfterEach").value = c.afterEach ? c.afterEach.duration : "";
+  $("circuitAfterCircuit").value = c.afterCircuit ? c.afterCircuit.duration : "";
+  renderCircuitInnerList();
+  $("circuitModal").classList.remove("hidden");
+}
+
+function closeCircuitModal() {
+  $("circuitModal").classList.add("hidden");
+  state.editingCircuit = null;
+  state.editingCircuitIndex = -1;
+}
+
+function renderCircuitInnerList() {
+  const c = state.editingCircuit;
+  const list = $("circuitIntervalList");
+
+  if (!c.intervals.length) {
+    list.innerHTML = '<div class="empty-state small">No intervals yet</div>';
+    return;
   }
+
+  list.innerHTML = "";
+  c.intervals.forEach(function (iv, i) {
+    const row = document.createElement("div");
+    row.className = "interval-row small";
+    const color = iv.color || "#b8f52c";
+    row.innerHTML =
+      '<div class="interval-swatch small" style="background:' + color + '"></div>' +
+      '<div class="interval-info">' +
+        '<div class="interval-name-row">' + escapeHtml(iv.name || iv.type) + '</div>' +
+        '<div class="interval-meta">' + formatDuration(iv.duration || 0) + '</div>' +
+      '</div>' +
+      '<button class="interval-delete-btn" data-idx="' + i + '">×</button>';
+
+    row.querySelector(".interval-delete-btn").addEventListener("click", function (e) {
+      e.stopPropagation();
+      c.intervals.splice(i, 1);
+      renderCircuitInnerList();
+    });
+
+    list.appendChild(row);
+  });
 }
 
-function confirmExit() {
-  if (confirm("Exit timer? Progress will be lost.")) {
-    if (state.intervalHandle) clearInterval(state.intervalHandle);
-    if (window.history.length > 1) window.history.back();
-  }
-}
+function addInnerInterval() {
+  const c = state.editingCircuit;
+  const name = prompt("Interval name (e.g. Work):");
+  if (!name) return;
+  const durationStr = prompt("Duration in seconds:");
+  const duration = parseInt(durationStr, 10);
+  if (!duration || duration < 1) return;
+  const typeChoice = prompt("Type? work / rest / mobility / lift / cooldown", "work") || "work";
+  const color = typeChoice === "rest" ? "#ff3b30" : "#b8f52c";
 
-// ============================================================
-// LOCK
-// ============================================================
-
-let unlockTimer = null;
-
-function toggleLock() {
-  if (state.isLocked) unlockLock();
-  else lockInterface();
-}
-
-function lockInterface() {
-  state.isLocked = true;
-  state.scrollLocked = true;
-  dom.lockOverlay.classList.remove("hidden");
-  dom.intervalScroll.style.overflowY = "hidden";
-  closeMenu();
-}
-
-function unlockLock() {
-  state.isLocked = false;
-  state.scrollLocked = false;
-  dom.lockOverlay.classList.add("hidden");
-  dom.intervalScroll.style.overflowY = "auto";
-}
-
-function beginUnlockHold() {
-  unlockTimer = setTimeout(function () {
-    unlockLock();
-  }, 2000);
-}
-
-function cancelUnlockHold() {
-  if (unlockTimer) {
-    clearTimeout(unlockTimer);
-    unlockTimer = null;
-  }
-}
-
-function lockFromMenu() {
-  closeMenu();
-  setTimeout(lockInterface, 200);
-}
-
-// ============================================================
-// HAMBURGER MENU
-// ============================================================
-
-function openMenu() {
-  dom.hamburgerMenu.classList.remove("hidden");
-  state.isPaused = true;
-}
-
-function closeMenu() {
-  dom.hamburgerMenu.classList.add("hidden");
-  if (state.isRunning && !state.isLocked) {
-    state.isPaused = false;
-  }
-}
-
-// ============================================================
-// INPUT PROMPTS
-// ============================================================
-
-function showInputPrompt(prompt) {
-  state.pendingInput = prompt;
-  dom.inputPrompt.textContent = prompt.prompt || "Enter value";
-  dom.inputField.value = "";
-  dom.inputModal.classList.remove("hidden");
-  dom.inputField.focus();
-}
-
-function submitInput() {
-  const value = dom.inputField.value.trim();
-  if (value === "") return;
-
-  state.collectedInputs.push({
-    prompt: state.pendingInput.prompt,
-    value: value,
-    intervalIndex: state.phaseIndex
+  c.intervals.push({
+    name: name,
+    type: typeChoice,
+    duration: duration,
+    color: color
   });
 
-  dom.inputModal.classList.add("hidden");
-  state.pendingInput = null;
-  nextInterval();
+  renderCircuitInnerList();
+}
+
+function saveCircuitFromModal() {
+  const c = state.editingCircuit;
+  const name = $("circuitName").value.trim();
+  const rounds = parseInt($("circuitRounds").value, 10) || 1;
+  const afterEach = parseInt($("circuitAfterEach").value, 10) || 0;
+  const afterCircuit = parseInt($("circuitAfterCircuit").value, 10) || 0;
+
+  if (!name) { showToast("Give the circuit a name", true); return; }
+  if (!c.intervals.length) { showToast("Add at least one inner interval", true); return; }
+
+  const circuit = {
+    type: "circuit",
+    name: name,
+    rounds: rounds,
+    intervals: c.intervals
+  };
+
+  if (afterEach > 0) {
+    circuit.afterEach = { name: "Round Rest", type: "rest", duration: afterEach, color: "#ff3b30" };
+  }
+  if (afterCircuit > 0) {
+    circuit.afterCircuit = { name: "Block Rest", type: "rest", duration: afterCircuit, color: "#ff3b30" };
+  }
+
+  if (state.editingCircuitIndex >= 0) {
+    state.editingTimer.structure[state.editingCircuitIndex] = circuit;
+  } else {
+    state.editingTimer.structure.push(circuit);
+  }
+
+  closeCircuitModal();
+  renderIntervalEditorList();
 }
 
 // ============================================================
-// COMPLETE
+// SAVE TIMER
 // ============================================================
 
-async function completeTimer() {
-  if (state.intervalHandle) clearInterval(state.intervalHandle);
-  state.isRunning = false;
+async function saveTimer() {
+  const t = state.editingTimer;
+  const name = $("timerName").value.trim();
 
-  const summary = "Completed " + state.completedRounds + " round" + (state.completedRounds === 1 ? "" : "s");
-  dom.completeSummary.textContent = summary;
-  dom.completeModal.classList.remove("hidden");
+  if (!name) { showToast("Timer needs a name", true); return; }
+  if (!t.structure.length) { showToast("Add at least one interval", true); return; }
 
-  speak("Timer complete");
-  await logTimerCompletion();
+  let timerId = t.timerId;
+  if (!timerId) {
+    timerId = "T" + Date.now().toString().slice(-8);
+  }
+
+  const totalDuration = computeTotalDuration(t.structure);
+
+  const payload = {
+    action: "saveTimer",
+    key: state.coachKey,
+    timerId: timerId,
+    timerName: name,
+    timerType: $("timerType").value,
+    totalDuration: totalDuration,
+    structure: JSON.stringify(t.structure),
+    ttsTitle: $("ttsTitle").value,
+    ttsCues: JSON.stringify({
+      halfway: $("cueHalfway").checked,
+      countdown3s: $("cueCountdown").checked,
+      nextUp: $("cueNextUp").checked
+    }),
+    defaultColors: "{}",
+    requiresInput: t.requiresInput ? "TRUE" : "FALSE",
+    inputPrompts: JSON.stringify(t.inputPrompts || []),
+    musicTrack: t.musicTrack || "",
+    notes: $("timerNotes").value
+  };
+
+  const btn = $("saveTimerBtn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+
+  try {
+    const res = await callAPI(payload);
+    if (res && res.ok) {
+      showToast("Timer saved");
+      t.timerId = timerId;
+      setTimeout(backToList, 600);
+    } else {
+      showToast((res && res.error) || "Save failed", true);
+      btn.disabled = false;
+      btn.textContent = "Save";
+    }
+  } catch (e) {
+    showToast("Network error", true);
+    btn.disabled = false;
+    btn.textContent = "Save";
+  }
 }
 
-async function logTimerCompletion() {
-  const inputData = state.collectedInputs.length ? JSON.stringify(state.collectedInputs) : "";
-  const firstInput = state.collectedInputs.length ? state.collectedInputs[0].value : "";
+function computeTotalDuration(structure) {
+  let total = 0;
+  structure.forEach(function (iv) {
+    if (iv.type === "circuit") {
+      const inner = (iv.intervals || []).reduce(function (sum, x) {
+        return sum + (parseInt(x.duration, 10) || 0);
+      }, 0);
+      const afterEach = iv.afterEach ? (iv.afterEach.duration || 0) * Math.max(0, iv.rounds - 1) : 0;
+      const afterCircuit = iv.afterCircuit ? (iv.afterCircuit.duration || 0) : 0;
+      total += (inner * iv.rounds) + afterEach + afterCircuit;
+    } else {
+      total += parseInt(iv.duration, 10) || 0;
+    }
+  });
+  return total;
+}
 
-  const params = new URLSearchParams();
-  params.append("action", "logSet");
-  params.append("token", state.token);
-  params.append("plan", state.timer.timerType || "timer");
-  params.append("exercise", "Timer: " + (state.timer.timerName || state.timerId));
-  params.append("set", "1");
-  params.append("target", String(state.timer.totalDuration || 0));
-  params.append("reps", String(firstInput));
-  params.append("duration", String(state.timer.totalDuration || 0));
-  params.append("roundsCompleted", String(state.completedRounds));
-  params.append("inputData", inputData);
-  params.append("notes", "");
+// ============================================================
+// DELETE TIMER
+// ============================================================
 
-  try { await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" }); } catch (e) {}
+async function deleteTimer(timerId) {
+  if (!confirm("Delete this timer? This cannot be undone.")) return;
+  try {
+    const res = await callAPI({ action: "deleteTimer", key: state.coachKey, timerId: timerId });
+    if (res && res.ok) {
+      showToast("Timer deleted");
+      loadTimers();
+    } else {
+      showToast((res && res.error) || "Delete failed", true);
+    }
+  } catch (e) {
+    showToast("Network error", true);
+  }
 }
 
 // ============================================================
 // HELPERS
 // ============================================================
 
-function colorForType(type) {
-  if (type === "rest") return "#ff3b30";
-  if (type === "prep") return "#c0c0c0";
-  if (type === "mobility") return "#ff2cd9";
-  if (type === "lift") return "#00e5ff";
-  if (type === "cooldown") return "#ff9f1c";
-  if (type === "circuit") return "#00e5ff";
-  return "#b8f52c";
+async function callAPI(payload) {
+  const params = new URLSearchParams();
+  Object.keys(payload).forEach(function (k) {
+    const v = payload[k];
+    if (v !== undefined && v !== null) params.append(k, String(v));
+  });
+  const url = ENDPOINT + "?" + params.toString();
+  const res = await fetch(url, { method: "GET", redirect: "follow" });
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (e) { return { ok: false, error: "Bad response: " + text.slice(0, 120) }; }
 }
 
 function formatDuration(seconds) {
@@ -600,26 +793,6 @@ function formatDuration(seconds) {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return m + ":" + String(r).padStart(2, "0");
-}
-
-function speak(text) {
-  if (!text) return;
-  if (!("speechSynthesis" in window)) return;
-  try {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1.1;
-    utterance.pitch = 1.0;
-    window.speechSynthesis.speak(utterance);
-  } catch (e) {}
-}
-
-function shouldCue(name) {
-  if (!state.timer || !state.timer.ttsCues) return true;
-  try {
-    const cues = JSON.parse(state.timer.ttsCues);
-    return cues[name] !== false;
-  } catch (e) { return true; }
 }
 
 function escapeHtml(s) {
@@ -630,8 +803,10 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
-function showError(msg) {
-  dom.errorMsg.textContent = msg;
-  dom.errorMsg.classList.remove("hidden");
-  setTimeout(function () { dom.errorMsg.classList.add("hidden"); }, 6000);
+function showToast(msg, isError) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.remove("hidden", "error", "warn");
+  if (isError) t.classList.add("error");
+  setTimeout(function () { t.classList.add("hidden"); }, 2400);
 }
