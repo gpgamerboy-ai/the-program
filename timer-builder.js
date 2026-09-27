@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER BUILDER — v2
+// TIMER BUILDER — v4 (preview button)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
@@ -14,7 +14,10 @@ const state = {
   editingIntervalIndex: -1,
   editingCircuit: null,
   editingCircuitIndex: -1,
-  quickDurationValue: null
+  quickDurationValue: null,
+  clipboard: null,
+  dragSourceIndex: -1,
+  dragTargetIndex: -1
 };
 
 const COLORS = [
@@ -46,6 +49,7 @@ function wireEvents() {
   $("signOutBtn").addEventListener("click", handleSignOut);
   $("backBtn").addEventListener("click", backToList);
   $("saveTimerBtn").addEventListener("click", saveTimer);
+  $("previewBtn").addEventListener("click", previewTimer);
   $("addIntervalBtn").addEventListener("click", openNewIntervalModal);
   $("addCircuitBtn").addEventListener("click", openNewCircuitModal);
   $("intervalClose").addEventListener("click", closeIntervalModal);
@@ -239,8 +243,24 @@ function openEditor() {
 
 function backToList() {
   state.editingTimer = null;
+  state.clipboard = null;
   showList();
   loadTimers();
+}
+
+// ============================================================
+// PREVIEW
+// ============================================================
+
+function previewTimer() {
+  const t = state.editingTimer;
+  if (!t.timerId) {
+    showToast("Save the timer first, then preview", true);
+    return;
+  }
+  const url = "timer.html?id=" + encodeURIComponent(t.timerId) +
+    "&preview=1&key=" + encodeURIComponent(state.coachKey);
+  window.open(url, "_blank");
 }
 
 // ============================================================
@@ -257,6 +277,26 @@ function renderIntervalEditorList() {
   }
 
   list.innerHTML = "";
+
+  if (state.clipboard) {
+    const pasteBar = document.createElement("div");
+    pasteBar.className = "paste-bar";
+    pasteBar.innerHTML =
+      '<span class="paste-label">Copied: ' + escapeHtml(state.clipboard.name || state.clipboard.type) + '</span>' +
+      '<button class="paste-btn">Paste Here</button>' +
+      '<button class="clear-clip-btn">Clear</button>';
+
+    pasteBar.querySelector(".paste-btn").addEventListener("click", function () {
+      pasteAt(0);
+    });
+    pasteBar.querySelector(".clear-clip-btn").addEventListener("click", function () {
+      state.clipboard = null;
+      renderIntervalEditorList();
+    });
+
+    list.appendChild(pasteBar);
+  }
+
   t.structure.forEach(function (iv, i) {
     list.appendChild(renderIntervalRow(iv, i));
   });
@@ -266,6 +306,8 @@ function renderIntervalRow(iv, index) {
   const row = document.createElement("div");
   row.className = "interval-row";
   if (iv.type === "circuit") row.classList.add("is-circuit");
+  row.dataset.index = index;
+  row.draggable = false;
 
   const color = iv.color || (iv.type === "circuit" ? "#2e6cf6" : "#b8f52c");
   const isCircuit = iv.type === "circuit";
@@ -279,12 +321,14 @@ function renderIntervalRow(iv, index) {
     : formatDuration(iv.duration || 0) + " • " + (iv.type || "work");
 
   row.innerHTML =
+    '<div class="drag-handle" title="Drag to reorder">⋮⋮</div>' +
     '<div class="interval-swatch" style="background:' + color + '"></div>' +
     '<div class="interval-info">' +
       '<div class="interval-name-row">' + escapeHtml(name) + '</div>' +
       '<div class="interval-meta">' + escapeHtml(meta) + '</div>' +
     '</div>' +
     '<div class="interval-row-actions">' +
+      '<button class="interval-copy-btn" data-act="copy" data-idx="' + index + '" title="Copy">📋</button>' +
       '<button class="interval-move-btn" data-act="up" data-idx="' + index + '">↑</button>' +
       '<button class="interval-move-btn" data-act="down" data-idx="' + index + '">↓</button>' +
       '<button class="interval-delete-btn" data-act="del" data-idx="' + index + '">×</button>' +
@@ -303,11 +347,105 @@ function renderIntervalRow(iv, index) {
       if (act === "up") moveInterval(idx, -1);
       else if (act === "down") moveInterval(idx, 1);
       else if (act === "del") deleteInterval(idx);
+      else if (act === "copy") copyInterval(idx);
     });
   });
 
+  attachDragHandlers(row, index);
+
   return row;
 }
+
+function attachDragHandlers(row, index) {
+  const handle = row.querySelector(".drag-handle");
+
+  handle.addEventListener("mousedown", startDrag);
+  handle.addEventListener("touchstart", startDrag, { passive: false });
+
+  function startDrag(e) {
+    e.preventDefault();
+    row.draggable = true;
+    state.dragSourceIndex = index;
+    row.classList.add("dragging");
+  }
+
+  row.addEventListener("dragstart", function (e) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(index));
+    state.dragSourceIndex = index;
+    row.classList.add("dragging");
+  });
+
+  row.addEventListener("dragend", function () {
+    row.classList.remove("dragging");
+    row.draggable = false;
+    clearDragHints();
+    state.dragSourceIndex = -1;
+    state.dragTargetIndex = -1;
+  });
+
+  row.addEventListener("dragover", function (e) {
+    if (state.dragSourceIndex < 0 || state.dragSourceIndex === index) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+
+    const rect = row.getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    const before = e.clientY < midpoint;
+
+    clearDragHints();
+    row.classList.add(before ? "drag-over-top" : "drag-over-bottom");
+    state.dragTargetIndex = before ? index : index + 1;
+  });
+
+  row.addEventListener("drop", function (e) {
+    e.preventDefault();
+    if (state.dragTargetIndex < 0) return;
+    performDragReorder(state.dragSourceIndex, state.dragTargetIndex);
+  });
+}
+
+function clearDragHints() {
+  document.querySelectorAll(".interval-row").forEach(function (r) {
+    r.classList.remove("drag-over-top", "drag-over-bottom");
+  });
+}
+
+function performDragReorder(fromIndex, toIndex) {
+  const arr = state.editingTimer.structure;
+  if (fromIndex < 0 || fromIndex >= arr.length) return;
+
+  const moved = arr.splice(fromIndex, 1)[0];
+  if (toIndex > fromIndex) toIndex--;
+  arr.splice(toIndex, 0, moved);
+
+  state.dragSourceIndex = -1;
+  state.dragTargetIndex = -1;
+  renderIntervalEditorList();
+}
+
+// ============================================================
+// COPY / PASTE
+// ============================================================
+
+function copyInterval(index) {
+  const source = state.editingTimer.structure[index];
+  state.clipboard = JSON.parse(JSON.stringify(source));
+  showToast("Copied: " + (state.clipboard.name || state.clipboard.type));
+  renderIntervalEditorList();
+}
+
+function pasteAt(insertIndex) {
+  if (!state.clipboard) return;
+  const copy = JSON.parse(JSON.stringify(state.clipboard));
+  state.editingTimer.structure.splice(insertIndex, 0, copy);
+  renderIntervalEditorList();
+  showToast("Pasted");
+}
+
+// ============================================================
+// MOVE / DELETE
+// ============================================================
 
 function moveInterval(index, direction) {
   const arr = state.editingTimer.structure;
