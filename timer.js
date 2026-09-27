@@ -21,13 +21,8 @@ const state = {
   collectedInputs: [],
   pendingInput: null,
   phaseStartTime: null,
-  completedRounds: 0,
-  totalDurationElapsed: 0
+  completedRounds: 0
 };
-
-// ============================================================
-// DOM
-// ============================================================
 
 const $ = function (id) { return document.getElementById(id); };
 
@@ -51,10 +46,6 @@ const dom = {
   errorMsg: $("errorMsg")
 };
 
-// ============================================================
-// STARTUP
-// ============================================================
-
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
   loadTimerFromURL();
@@ -71,10 +62,6 @@ function wireEvents() {
   });
 }
 
-// ============================================================
-// LOAD TIMER
-// ============================================================
-
 function loadTimerFromURL() {
   const params = new URLSearchParams(window.location.search);
   state.timerId = params.get("id");
@@ -85,12 +72,10 @@ function loadTimerFromURL() {
     showError("No timer ID provided. Use ?id=T001");
     return;
   }
-
   if (!state.token) {
-    showError("No session token. Open this timer from the athlete app.");
+    showError("No session token. Log in to the athlete app first.");
     return;
   }
-
   fetchTimer();
 }
 
@@ -108,7 +93,6 @@ async function fetchTimer() {
       showError((data && data.error) || "Could not load timer");
       return;
     }
-
     state.timer = data.timer;
     prepareTimer();
   } catch (e) {
@@ -119,24 +103,17 @@ async function fetchTimer() {
 function prepareTimer() {
   const t = state.timer;
 
-  try {
-    state.structure = JSON.parse(t.structure || "[]");
-  } catch (e) {
-    state.structure = [];
-  }
+  try { state.structure = JSON.parse(t.structure || "[]"); }
+  catch (e) { state.structure = []; }
 
-  try {
-    state.inputPrompts = JSON.parse(t.inputPrompts || "[]");
-  } catch (e) {
-    state.inputPrompts = [];
-  }
+  try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); }
+  catch (e) { state.inputPrompts = []; }
 
   if (!state.structure.length) {
     showError("Timer has no intervals defined");
     return;
   }
 
-  // Count total rounds: count work intervals
   state.totalRounds = state.structure.filter(function (iv) { return iv.type === "work"; }).length || 1;
   state.phaseIndex = 0;
   state.round = 1;
@@ -144,15 +121,8 @@ function prepareTimer() {
 
   speakTitle(t.ttsTitle || t.timerName || "Starting timer");
 
-  // Small delay before first interval
-  setTimeout(function () {
-    beginInterval(0);
-  }, 3000);
+  setTimeout(function () { beginInterval(0); }, 3000);
 }
-
-// ============================================================
-// INTERVAL CONTROL
-// ============================================================
 
 function beginInterval(index) {
   if (index >= state.structure.length) {
@@ -166,14 +136,11 @@ function beginInterval(index) {
   state.phaseStartTime = Date.now();
   state.isRunning = true;
 
-  // Update UI
   updatePhaseUI(iv);
   updateTimerDisplay();
 
-  // TTS: announce interval name
   speak(iv.name || iv.type);
 
-  // Warn of upcoming interval (if enabled and not the last)
   const nextIv = state.structure[index + 1];
   if (nextIv && shouldCue("nextUp")) {
     setTimeout(function () {
@@ -181,12 +148,10 @@ function beginInterval(index) {
     }, 1500);
   }
 
-  // Track rounds for work intervals
   if (iv.type === "work") {
     state.round = state.completedRounds + 1;
   }
 
-  // Start the ticking
   startTicking();
 }
 
@@ -198,14 +163,12 @@ function startTicking() {
 
     state.timeLeft--;
 
-    // Halfway alert
     const iv = state.structure[state.phaseIndex];
     const halfwayThreshold = Math.floor((parseInt(iv.duration, 10) || 0) / 2);
     if (state.timeLeft === halfwayThreshold && shouldCue("halfway")) {
       speak("Halfway");
     }
 
-    // 3-2-1 countdown at end
     if (state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) {
       speak(String(state.timeLeft));
     }
@@ -216,7 +179,6 @@ function startTicking() {
       endInterval();
       return;
     }
-
     updateTimerDisplay();
   }, 1000);
 }
@@ -228,7 +190,6 @@ function endInterval() {
     state.completedRounds++;
   }
 
-  // Check for input prompts at end of this interval
   const prompt = state.inputPrompts.find(function (p) {
     return p.atEnd && (p.afterInterval === state.phaseIndex + 1 || p.afterType === iv.type);
   });
@@ -238,7 +199,6 @@ function endInterval() {
     showInputPrompt(prompt);
     return;
   }
-
   nextInterval();
 }
 
@@ -251,20 +211,12 @@ function nextInterval() {
   }
 }
 
-// ============================================================
-// DISPLAY
-// ============================================================
-
 function updatePhaseUI(iv) {
-  // Set body class based on phase type
   document.body.className = "phase-" + (iv.type || "work");
-
   const typeLabel = (iv.type || "work").toUpperCase();
   dom.phaseBanner.textContent = typeLabel;
-
   dom.intervalName.textContent = iv.name || iv.type || "";
 
-  // Round info
   if (iv.type === "work") {
     dom.roundInfo.textContent = "Round " + (state.completedRounds + 1) + " of " + state.totalRounds;
   } else {
@@ -278,7 +230,6 @@ function updateTimerDisplay() {
   dom.timeDisplay.textContent =
     String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
 
-  // Progress
   const iv = state.structure[state.phaseIndex];
   if (iv && iv.duration > 0) {
     const elapsed = iv.duration - state.timeLeft;
@@ -286,10 +237,6 @@ function updateTimerDisplay() {
     dom.progressFill.style.width = pct + "%";
   }
 }
-
-// ============================================================
-// CONTROLS
-// ============================================================
 
 function togglePause() {
   state.isPaused = !state.isPaused;
@@ -311,10 +258,6 @@ function confirmStop() {
     if (window.history.length > 1) window.history.back();
   }
 }
-
-// ============================================================
-// INPUT PROMPTS
-// ============================================================
 
 function showInputPrompt(prompt) {
   state.pendingInput = prompt;
@@ -339,10 +282,6 @@ function submitInput() {
   nextInterval();
 }
 
-// ============================================================
-// COMPLETE
-// ============================================================
-
 async function completeTimer() {
   if (state.intervalHandle) clearInterval(state.intervalHandle);
   state.isRunning = false;
@@ -352,8 +291,6 @@ async function completeTimer() {
   dom.completeModal.classList.remove("hidden");
 
   speak("Timer complete");
-
-  // Log to sheet
   await logTimerCompletion();
 }
 
@@ -378,34 +315,22 @@ async function logTimerCompletion() {
 
   try {
     await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" });
-  } catch (e) {
-    // Silent fail. Timer completion is what matters.
-  }
+  } catch (e) {}
 }
-
-// ============================================================
-// TTS
-// ============================================================
 
 function speak(text) {
   if (!text) return;
   if (!("speechSynthesis" in window)) return;
-
   try {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 1.1;
     utterance.pitch = 1.0;
-    utterance.volume = 1.0;
     window.speechSynthesis.speak(utterance);
-  } catch (e) {
-    // Silent fail
-  }
+  } catch (e) {}
 }
 
-function speakTitle(text) {
-  speak(text);
-}
+function speakTitle(text) { speak(text); }
 
 function shouldCue(name) {
   if (!state.timer || !state.timer.ttsCues) return true;
@@ -417,14 +342,10 @@ function shouldCue(name) {
   }
 }
 
-// ============================================================
-// ERRORS
-// ============================================================
-
 function showError(msg) {
   dom.errorMsg.textContent = msg;
   dom.errorMsg.classList.remove("hidden");
   setTimeout(function () {
     dom.errorMsg.classList.add("hidden");
-  }, 5000);
+  }, 6000);
 }
