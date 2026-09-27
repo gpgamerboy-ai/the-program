@@ -1,812 +1,698 @@
-// ============================================================
-// TIMER BUILDER — v3 (copy/paste + drag reorder)
-// ============================================================
+/* ============================================================
+   TIMER BUILDER — styles v2
+   ============================================================ */
 
-const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
-const COACH_KEY_STORAGE = "coachKey";
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-const $ = function (id) { return document.getElementById(id); };
-
-const state = {
-  coachKey: null,
-  timers: [],
-  editingTimer: null,
-  editingIntervalIndex: -1,
-  editingCircuit: null,
-  editingCircuitIndex: -1,
-  quickDurationValue: null,
-  clipboard: null,     // copied interval or circuit
-  dragSourceIndex: -1, // index being dragged
-  dragTargetIndex: -1  // index being dragged over
-};
-
-const COLORS = [
-  "#b8f52c", "#ff3b30", "#c0c0c0", "#ff2cd9", "#00e5ff", "#ff9f1c",
-  "#2e6cf6", "#9b59b6", "#f1c40f", "#e67e22", "#1abc9c", "#34495e"
-];
-
-// ============================================================
-// STARTUP
-// ============================================================
-
-document.addEventListener("DOMContentLoaded", function () {
-  wireEvents();
-  const saved = localStorage.getItem(COACH_KEY_STORAGE);
-  if (saved) {
-    state.coachKey = saved;
-    showList();
-    loadTimers();
-  }
-  renderColorPicker();
-});
-
-function wireEvents() {
-  $("keyBtn").addEventListener("click", handleKeySubmit);
-  $("keyInput").addEventListener("keydown", function (e) {
-    if (e.key === "Enter") handleKeySubmit();
-  });
-  $("newTimerBtn").addEventListener("click", createNewTimer);
-  $("signOutBtn").addEventListener("click", handleSignOut);
-  $("backBtn").addEventListener("click", backToList);
-  $("saveTimerBtn").addEventListener("click", saveTimer);
-  $("addIntervalBtn").addEventListener("click", openNewIntervalModal);
-  $("addCircuitBtn").addEventListener("click", openNewCircuitModal);
-  $("intervalClose").addEventListener("click", closeIntervalModal);
-  $("intervalSave").addEventListener("click", saveIntervalFromModal);
-  document.querySelectorAll(".chip[data-sec]").forEach(function (chip) {
-    chip.addEventListener("click", function () {
-      $("ivDuration").value = chip.dataset.sec;
-      state.quickDurationValue = chip.dataset.sec;
-      document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
-      chip.classList.add("selected");
-    });
-  });
-  $("circuitClose").addEventListener("click", closeCircuitModal);
-  $("circuitSave").addEventListener("click", saveCircuitFromModal);
-  $("circuitAddInterval").addEventListener("click", addInnerInterval);
+:root {
+  --bg: #0f1115;
+  --bg-card: #181b22;
+  --bg-elevated: #1a1e26;
+  --bg-input: #0f1115;
+  --border: #262a33;
+  --border-strong: #2c313c;
+  --text: #e8e8e8;
+  --text-dim: #9aa3b0;
+  --text-bright: #ffffff;
+  --accent: #2e6cf6;
+  --success: #1f7a3d;
+  --danger: #b3402f;
+  --warn: #d29a1f;
+  --radius: 10px;
+  --radius-lg: 14px;
 }
 
-// ============================================================
-// KEY GATE
-// ============================================================
-
-async function handleKeySubmit() {
-  const key = $("keyInput").value.trim();
-  if (!key) return;
-  try {
-    const res = await callAPI({ action: "coachAthletes", key: key });
-    if (!res || !res.ok) {
-      $("keyErr").textContent = (res && res.error) || "Invalid key";
-      return;
-    }
-    state.coachKey = key;
-    localStorage.setItem(COACH_KEY_STORAGE, key);
-    $("keyErr").textContent = "";
-    showList();
-    loadTimers();
-  } catch (e) {
-    $("keyErr").textContent = "Network error";
-  }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
 }
 
-function handleSignOut() {
-  localStorage.removeItem(COACH_KEY_STORAGE);
-  state.coachKey = null;
-  $("keyGate").classList.remove("hidden");
-  $("listView").classList.add("hidden");
-  $("editorView").classList.add("hidden");
-  $("keyInput").value = "";
+.hidden { display: none !important; }
+a { color: var(--accent); text-decoration: none; }
+
+/* ============================================================
+   KEY GATE
+   ============================================================ */
+
+.key-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
 }
 
-function showList() {
-  $("keyGate").classList.add("hidden");
-  $("listView").classList.remove("hidden");
-  $("editorView").classList.add("hidden");
+.key-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 22px;
 }
 
-function showEditor() {
-  $("keyGate").classList.add("hidden");
-  $("listView").classList.add("hidden");
-  $("editorView").classList.remove("hidden");
+.key-card h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  text-align: center;
 }
 
-// ============================================================
-// LOAD TIMERS
-// ============================================================
-
-async function loadTimers() {
-  const list = $("timerList");
-  list.innerHTML = '<div class="empty-state">Loading timers…</div>';
-
-  try {
-    const res = await callAPI({ action: "getTimersByKey", key: state.coachKey });
-    if (!res || !res.ok) {
-      list.innerHTML = '<div class="empty-state">Could not load timers.</div>';
-      return;
-    }
-    state.timers = res.timers || [];
-    renderTimerList();
-  } catch (e) {
-    list.innerHTML = '<div class="empty-state">Network error loading timers.</div>';
-  }
+.key-card .sub {
+  margin: 0 0 24px;
+  color: var(--text-dim);
+  font-size: 14px;
+  text-align: center;
 }
 
-function renderTimerList() {
-  const list = $("timerList");
-  if (!state.timers.length) {
-    list.innerHTML = '<div class="empty-state">No timers yet. Tap "New Timer" to create one.</div>';
-    return;
-  }
-
-  list.innerHTML = "";
-  state.timers.forEach(function (timer) {
-    const card = document.createElement("div");
-    card.className = "timer-card";
-
-    const intervalCount = parseIntervalCount(timer.structure);
-
-    card.innerHTML =
-      '<div class="timer-card-info">' +
-        '<div class="timer-card-name">' + escapeHtml(timer.timerName || "(unnamed)") + '</div>' +
-        '<div class="timer-card-meta">' +
-          escapeHtml(timer.timerId) + ' • ' +
-          intervalCount + ' interval' + (intervalCount === 1 ? '' : 's') + ' • ' +
-          formatDuration(timer.totalDuration || 0) +
-        '</div>' +
-      '</div>' +
-      '<button class="timer-card-delete" data-id="' + escapeHtml(timer.timerId) + '">×</button>';
-
-    card.querySelector(".timer-card-info").addEventListener("click", function () {
-      editExistingTimer(timer);
-    });
-
-    card.querySelector(".timer-card-delete").addEventListener("click", function (e) {
-      e.stopPropagation();
-      deleteTimer(timer.timerId);
-    });
-
-    list.appendChild(card);
-  });
+.key-card input {
+  width: 100%;
+  padding: 14px 12px;
+  font-size: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text);
 }
 
-function parseIntervalCount(structureJson) {
-  try {
-    const raw = JSON.parse(structureJson || "[]");
-    return raw.length;
-  } catch (e) { return 0; }
+.key-card input:focus { outline: none; border-color: var(--accent); }
+
+.error-text {
+  color: var(--danger);
+  font-size: 13px;
+  text-align: center;
+  margin-top: 12px;
+  min-height: 16px;
 }
 
-// ============================================================
-// NEW / EDIT TIMER
-// ============================================================
+/* ============================================================
+   BUTTONS
+   ============================================================ */
 
-function createNewTimer() {
-  state.editingTimer = {
-    timerId: "",
-    timerName: "",
-    timerType: "intervals",
-    totalDuration: 0,
-    structure: [],
-    ttsTitle: "",
-    ttsCues: { halfway: true, countdown3s: true, nextUp: true },
-    defaultColors: {},
-    requiresInput: false,
-    inputPrompts: [],
-    musicTrack: "",
-    notes: ""
-  };
-  openEditor();
+.primary-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  margin-top: 16px;
 }
 
-function editExistingTimer(timer) {
-  let structure = [];
-  let cues = { halfway: true, countdown3s: true, nextUp: true };
-  let prompts = [];
-
-  try { structure = JSON.parse(timer.structure || "[]"); } catch (e) {}
-  try { cues = JSON.parse(timer.ttsCues || "{}"); } catch (e) {}
-  try { prompts = JSON.parse(timer.inputPrompts || "[]"); } catch (e) {}
-
-  state.editingTimer = {
-    timerId: timer.timerId,
-    timerName: timer.timerName,
-    timerType: timer.timerType,
-    totalDuration: timer.totalDuration,
-    structure: structure,
-    ttsTitle: timer.ttsTitle || "",
-    ttsCues: cues,
-    defaultColors: {},
-    requiresInput: timer.requiresInput || false,
-    inputPrompts: prompts,
-    musicTrack: timer.musicTrack || "",
-    notes: timer.notes || ""
-  };
-  openEditor();
+.primary-btn.small {
+  width: auto;
+  padding: 8px 16px;
+  font-size: 13px;
+  margin-top: 0;
 }
 
-function openEditor() {
-  const t = state.editingTimer;
+.primary-btn:active { opacity: 0.8; }
+.primary-btn:disabled { opacity: 0.6; }
 
-  $("editorTitle").textContent = t.timerId ? "Edit Timer" : "New Timer";
-  $("timerName").value = t.timerName || "";
-  $("timerType").value = t.timerType || "intervals";
-  $("ttsTitle").value = t.ttsTitle || "";
-  $("timerNotes").value = t.notes || "";
-  $("cueHalfway").checked = t.ttsCues.halfway !== false;
-  $("cueCountdown").checked = t.ttsCues.countdown3s !== false;
-  $("cueNextUp").checked = t.ttsCues.nextUp !== false;
-
-  renderIntervalEditorList();
-  showEditor();
+.secondary-btn {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
 }
 
-function backToList() {
-  state.editingTimer = null;
-  state.clipboard = null;
-  showList();
-  loadTimers();
+.secondary-btn.small {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
-// ============================================================
-// RENDER INTERVAL EDITOR LIST
-// ============================================================
-
-function renderIntervalEditorList() {
-  const t = state.editingTimer;
-  const list = $("intervalList");
-
-  if (!t.structure.length) {
-    list.innerHTML = '<div class="empty-state">No intervals yet. Add one.</div>';
-    return;
-  }
-
-  list.innerHTML = "";
-
-  // Paste button at top if clipboard exists
-  if (state.clipboard) {
-    const pasteBar = document.createElement("div");
-    pasteBar.className = "paste-bar";
-    pasteBar.innerHTML =
-      '<span class="paste-label">Copied: ' + escapeHtml(state.clipboard.name || state.clipboard.type) + '</span>' +
-      '<button class="paste-btn">Paste Here</button>' +
-      '<button class="clear-clip-btn">Clear</button>';
-
-    pasteBar.querySelector(".paste-btn").addEventListener("click", function () {
-      pasteAt(0);
-    });
-    pasteBar.querySelector(".clear-clip-btn").addEventListener("click", function () {
-      state.clipboard = null;
-      renderIntervalEditorList();
-    });
-
-    list.appendChild(pasteBar);
-  }
-
-  t.structure.forEach(function (iv, i) {
-    list.appendChild(renderIntervalRow(iv, i));
-  });
+.secondary-btn:active {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-function renderIntervalRow(iv, index) {
-  const row = document.createElement("div");
-  row.className = "interval-row";
-  if (iv.type === "circuit") row.classList.add("is-circuit");
-  row.dataset.index = index;
-  row.draggable = false;
-
-  const color = iv.color || (iv.type === "circuit" ? "#2e6cf6" : "#b8f52c");
-  const isCircuit = iv.type === "circuit";
-
-  const name = isCircuit
-    ? (iv.name || "Circuit")
-    : (iv.name || iv.type || "Interval");
-
-  const meta = isCircuit
-    ? iv.rounds + " rounds × " + (iv.intervals || []).length + " intervals"
-    : formatDuration(iv.duration || 0) + " • " + (iv.type || "work");
-
-  row.innerHTML =
-    '<div class="drag-handle" title="Drag to reorder">⋮⋮</div>' +
-    '<div class="interval-swatch" style="background:' + color + '"></div>' +
-    '<div class="interval-info">' +
-      '<div class="interval-name-row">' + escapeHtml(name) + '</div>' +
-      '<div class="interval-meta">' + escapeHtml(meta) + '</div>' +
-    '</div>' +
-    '<div class="interval-row-actions">' +
-      '<button class="interval-copy-btn" data-act="copy" data-idx="' + index + '" title="Copy">📋</button>' +
-      '<button class="interval-move-btn" data-act="up" data-idx="' + index + '">↑</button>' +
-      '<button class="interval-move-btn" data-act="down" data-idx="' + index + '">↓</button>' +
-      '<button class="interval-delete-btn" data-act="del" data-idx="' + index + '">×</button>' +
-    '</div>';
-
-  row.querySelector(".interval-info").addEventListener("click", function () {
-    if (isCircuit) openCircuitModal(index);
-    else openIntervalModal(index);
-  });
-
-  row.querySelectorAll("button[data-act]").forEach(function (btn) {
-    btn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      const act = btn.dataset.act;
-      const idx = parseInt(btn.dataset.idx, 10);
-      if (act === "up") moveInterval(idx, -1);
-      else if (act === "down") moveInterval(idx, 1);
-      else if (act === "del") deleteInterval(idx);
-      else if (act === "copy") copyInterval(idx);
-    });
-  });
-
-  // Drag to reorder
-  attachDragHandlers(row, index);
-
-  return row;
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-function attachDragHandlers(row, index) {
-  const handle = row.querySelector(".drag-handle");
-
-  handle.addEventListener("mousedown", startDrag);
-  handle.addEventListener("touchstart", startDrag, { passive: false });
-
-  function startDrag(e) {
-    e.preventDefault();
-    row.draggable = true;
-    state.dragSourceIndex = index;
-    row.classList.add("dragging");
-  }
-
-  row.addEventListener("dragstart", function (e) {
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(index));
-    state.dragSourceIndex = index;
-    row.classList.add("dragging");
-  });
-
-  row.addEventListener("dragend", function () {
-    row.classList.remove("dragging");
-    row.draggable = false;
-    clearDragHints();
-    state.dragSourceIndex = -1;
-    state.dragTargetIndex = -1;
-  });
-
-  row.addEventListener("dragover", function (e) {
-    if (state.dragSourceIndex < 0 || state.dragSourceIndex === index) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-
-    const rect = row.getBoundingClientRect();
-    const midpoint = rect.top + rect.height / 2;
-    const before = e.clientY < midpoint;
-
-    clearDragHints();
-    row.classList.add(before ? "drag-over-top" : "drag-over-bottom");
-    state.dragTargetIndex = before ? index : index + 1;
-  });
-
-  row.addEventListener("drop", function (e) {
-    e.preventDefault();
-    if (state.dragTargetIndex < 0) return;
-    performDragReorder(state.dragSourceIndex, state.dragTargetIndex);
-  });
+.icon-btn:active {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
-function clearDragHints() {
-  document.querySelectorAll(".interval-row").forEach(function (r) {
-    r.classList.remove("drag-over-top", "drag-over-bottom");
-  });
+/* ============================================================
+   APP HEADER
+   ============================================================ */
+
+.app-view { min-height: 100vh; }
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
-function performDragReorder(fromIndex, toIndex) {
-  const arr = state.editingTimer.structure;
-  if (fromIndex < 0 || fromIndex >= arr.length) return;
-
-  const moved = arr.splice(fromIndex, 1)[0];
-  if (toIndex > fromIndex) toIndex--;
-  arr.splice(toIndex, 0, moved);
-
-  state.dragSourceIndex = -1;
-  state.dragTargetIndex = -1;
-  renderIntervalEditorList();
+.app-header h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  flex: 1;
+  text-align: center;
 }
 
-// ============================================================
-// COPY / PASTE
-// ============================================================
+.app-header h1:first-child { text-align: left; }
 
-function copyInterval(index) {
-  const source = state.editingTimer.structure[index];
-  // Deep copy so editing the copy doesn't affect the source
-  state.clipboard = JSON.parse(JSON.stringify(source));
-  showToast("Copied: " + (state.clipboard.name || state.clipboard.type));
-  renderIntervalEditorList();
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
-function pasteAt(insertIndex) {
-  if (!state.clipboard) return;
-  const copy = JSON.parse(JSON.stringify(state.clipboard));
-  state.editingTimer.structure.splice(insertIndex, 0, copy);
-  renderIntervalEditorList();
-  showToast("Pasted");
+/* ============================================================
+   TIMER LIST
+   ============================================================ */
+
+.timer-list {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  padding-bottom: 60px;
 }
 
-// ============================================================
-// MOVE / DELETE
-// ============================================================
-
-function moveInterval(index, direction) {
-  const arr = state.editingTimer.structure;
-  const newIdx = index + direction;
-  if (newIdx < 0 || newIdx >= arr.length) return;
-  const temp = arr[index];
-  arr[index] = arr[newIdx];
-  arr[newIdx] = temp;
-  renderIntervalEditorList();
+.timer-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 10px;
+  cursor: pointer;
 }
 
-function deleteInterval(index) {
-  if (!confirm("Delete this interval?")) return;
-  state.editingTimer.structure.splice(index, 1);
-  renderIntervalEditorList();
+.timer-card:active { border-color: var(--accent); }
+
+.timer-card-info { flex: 1; min-width: 0; }
+
+.timer-card-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-// ============================================================
-// INTERVAL MODAL
-// ============================================================
-
-function openNewIntervalModal() {
-  state.editingIntervalIndex = -1;
-  $("intervalModalTitle").textContent = "Add Interval";
-  $("ivName").value = "";
-  $("ivType").value = "work";
-  $("ivDuration").value = "";
-  $("ivColorCustom").value = "";
-  state.quickDurationValue = null;
-  document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
-  selectColorSwatch("#b8f52c");
-  $("intervalModal").classList.remove("hidden");
+.timer-card-meta {
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
-function openIntervalModal(index) {
-  const iv = state.editingTimer.structure[index];
-  state.editingIntervalIndex = index;
-  $("intervalModalTitle").textContent = "Edit Interval";
-  $("ivName").value = iv.name || "";
-  $("ivType").value = iv.type || "work";
-  $("ivDuration").value = iv.duration || "";
-  $("ivColorCustom").value = "";
-  document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
-  if (iv.color) selectColorSwatch(iv.color);
-  else selectColorSwatch("#b8f52c");
-  $("intervalModal").classList.remove("hidden");
+.timer-card-delete {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--danger);
+  font-size: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
-function closeIntervalModal() {
-  $("intervalModal").classList.add("hidden");
-  state.editingIntervalIndex = -1;
+.timer-card-delete:active {
+  background: var(--danger);
+  color: #fff;
 }
 
-function saveIntervalFromModal() {
-  const name = $("ivName").value.trim();
-  const type = $("ivType").value;
-  const duration = parseInt($("ivDuration").value, 10);
-  const color = $("ivColorCustom").value.trim() || getSelectedColor() || "#b8f52c";
-
-  if (!name) { showToast("Give the interval a name", true); return; }
-  if (!duration || duration < 1) { showToast("Set a duration", true); return; }
-
-  const newInterval = {
-    name: name,
-    type: type,
-    duration: duration,
-    color: color
-  };
-
-  if (state.editingIntervalIndex >= 0) {
-    state.editingTimer.structure[state.editingIntervalIndex] = newInterval;
-  } else {
-    state.editingTimer.structure.push(newInterval);
-  }
-
-  closeIntervalModal();
-  renderIntervalEditorList();
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-dim);
+  font-size: 14px;
 }
 
-// ============================================================
-// COLOR PICKER
-// ============================================================
-
-function renderColorPicker() {
-  const picker = $("colorPicker");
-  picker.innerHTML = "";
-  COLORS.forEach(function (color) {
-    const swatch = document.createElement("div");
-    swatch.className = "color-swatch";
-    swatch.style.background = color;
-    swatch.dataset.color = color;
-    swatch.addEventListener("click", function () {
-      selectColorSwatch(color);
-      $("ivColorCustom").value = "";
-    });
-    picker.appendChild(swatch);
-  });
+.empty-state.small {
+  padding: 20px;
+  font-size: 13px;
 }
 
-function selectColorSwatch(color) {
-  document.querySelectorAll(".color-swatch").forEach(function (s) {
-    s.classList.toggle("selected", s.dataset.color === color);
-  });
+/* ============================================================
+   EDITOR MAIN
+   ============================================================ */
+
+.editor-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  padding-bottom: 80px;
 }
 
-function getSelectedColor() {
-  const sel = document.querySelector(".color-swatch.selected");
-  return sel ? sel.dataset.color : null;
+.form-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  margin-bottom: 16px;
 }
 
-// ============================================================
-// CIRCUIT MODAL
-// ============================================================
-
-function openNewCircuitModal() {
-  state.editingCircuitIndex = -1;
-  state.editingCircuit = {
-    type: "circuit",
-    name: "",
-    rounds: 8,
-    intervals: [],
-    afterCircuit: null
-  };
-  $("circuitName").value = "";
-  $("circuitRounds").value = 8;
-  $("circuitAfterEach").value = "";
-  $("circuitAfterCircuit").value = "";
-  renderCircuitInnerList();
-  $("circuitModal").classList.remove("hidden");
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 16px 0 6px;
 }
 
-function openCircuitModal(index) {
-  const c = state.editingTimer.structure[index];
-  state.editingCircuitIndex = index;
-  state.editingCircuit = {
-    type: "circuit",
-    name: c.name || "",
-    rounds: c.rounds || 1,
-    intervals: c.intervals || [],
-    afterCircuit: c.afterCircuit || null
-  };
-  $("circuitName").value = c.name || "";
-  $("circuitRounds").value = c.rounds || 1;
-  $("circuitAfterEach").value = c.afterEach ? c.afterEach.duration : "";
-  $("circuitAfterCircuit").value = c.afterCircuit ? c.afterCircuit.duration : "";
-  renderCircuitInnerList();
-  $("circuitModal").classList.remove("hidden");
+.form-label:first-child { margin-top: 0; }
+
+.form-card input[type="text"],
+.form-card input[type="number"],
+.form-card select,
+.form-card textarea {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text);
+  font-family: inherit;
 }
 
-function closeCircuitModal() {
-  $("circuitModal").classList.add("hidden");
-  state.editingCircuit = null;
-  state.editingCircuitIndex = -1;
+.form-card input:focus,
+.form-card select:focus,
+.form-card textarea:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
-function renderCircuitInnerList() {
-  const c = state.editingCircuit;
-  const list = $("circuitIntervalList");
-
-  if (!c.intervals.length) {
-    list.innerHTML = '<div class="empty-state small">No intervals yet</div>';
-    return;
-  }
-
-  list.innerHTML = "";
-  c.intervals.forEach(function (iv, i) {
-    const row = document.createElement("div");
-    row.className = "interval-row small";
-    const color = iv.color || "#b8f52c";
-    row.innerHTML =
-      '<div class="interval-swatch small" style="background:' + color + '"></div>' +
-      '<div class="interval-info">' +
-        '<div class="interval-name-row">' + escapeHtml(iv.name || iv.type) + '</div>' +
-        '<div class="interval-meta">' + formatDuration(iv.duration || 0) + '</div>' +
-      '</div>' +
-      '<button class="interval-delete-btn" data-idx="' + i + '">×</button>';
-
-    row.querySelector(".interval-delete-btn").addEventListener("click", function (e) {
-      e.stopPropagation();
-      c.intervals.splice(i, 1);
-      renderCircuitInnerList();
-    });
-
-    list.appendChild(row);
-  });
+.form-card textarea {
+  resize: vertical;
+  min-height: 44px;
 }
 
-function addInnerInterval() {
-  const c = state.editingCircuit;
-  const name = prompt("Interval name (e.g. Work):");
-  if (!name) return;
-  const durationStr = prompt("Duration in seconds:");
-  const duration = parseInt(durationStr, 10);
-  if (!duration || duration < 1) return;
-  const typeChoice = prompt("Type? work / rest / mobility / lift / cooldown", "work") || "work";
-  const color = typeChoice === "rest" ? "#ff3b30" : "#b8f52c";
+/* ============================================================
+   TOGGLES
+   ============================================================ */
 
-  c.intervals.push({
-    name: name,
-    type: typeChoice,
-    duration: duration,
-    color: color
-  });
-
-  renderCircuitInnerList();
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
 }
 
-function saveCircuitFromModal() {
-  const c = state.editingCircuit;
-  const name = $("circuitName").value.trim();
-  const rounds = parseInt($("circuitRounds").value, 10) || 1;
-  const afterEach = parseInt($("circuitAfterEach").value, 10) || 0;
-  const afterCircuit = parseInt($("circuitAfterCircuit").value, 10) || 0;
-
-  if (!name) { showToast("Give the circuit a name", true); return; }
-  if (!c.intervals.length) { showToast("Add at least one inner interval", true); return; }
-
-  const circuit = {
-    type: "circuit",
-    name: name,
-    rounds: rounds,
-    intervals: c.intervals
-  };
-
-  if (afterEach > 0) {
-    circuit.afterEach = { name: "Round Rest", type: "rest", duration: afterEach, color: "#ff3b30" };
-  }
-  if (afterCircuit > 0) {
-    circuit.afterCircuit = { name: "Block Rest", type: "rest", duration: afterCircuit, color: "#ff3b30" };
-  }
-
-  if (state.editingCircuitIndex >= 0) {
-    state.editingTimer.structure[state.editingCircuitIndex] = circuit;
-  } else {
-    state.editingTimer.structure.push(circuit);
-  }
-
-  closeCircuitModal();
-  renderIntervalEditorList();
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
 }
 
-// ============================================================
-// SAVE TIMER
-// ============================================================
-
-async function saveTimer() {
-  const t = state.editingTimer;
-  const name = $("timerName").value.trim();
-
-  if (!name) { showToast("Timer needs a name", true); return; }
-  if (!t.structure.length) { showToast("Add at least one interval", true); return; }
-
-  let timerId = t.timerId;
-  if (!timerId) {
-    timerId = "T" + Date.now().toString().slice(-8);
-  }
-
-  const totalDuration = computeTotalDuration(t.structure);
-
-  const payload = {
-    action: "saveTimer",
-    key: state.coachKey,
-    timerId: timerId,
-    timerName: name,
-    timerType: $("timerType").value,
-    totalDuration: totalDuration,
-    structure: JSON.stringify(t.structure),
-    ttsTitle: $("ttsTitle").value,
-    ttsCues: JSON.stringify({
-      halfway: $("cueHalfway").checked,
-      countdown3s: $("cueCountdown").checked,
-      nextUp: $("cueNextUp").checked
-    }),
-    defaultColors: "{}",
-    requiresInput: t.requiresInput ? "TRUE" : "FALSE",
-    inputPrompts: JSON.stringify(t.inputPrompts || []),
-    musicTrack: t.musicTrack || "",
-    notes: $("timerNotes").value
-  };
-
-  const btn = $("saveTimerBtn");
-  btn.disabled = true;
-  btn.textContent = "Saving…";
-
-  try {
-    const res = await callAPI(payload);
-    if (res && res.ok) {
-      showToast("Timer saved");
-      t.timerId = timerId;
-      setTimeout(backToList, 600);
-    } else {
-      showToast((res && res.error) || "Save failed", true);
-      btn.disabled = false;
-      btn.textContent = "Save";
-    }
-  } catch (e) {
-    showToast("Network error", true);
-    btn.disabled = false;
-    btn.textContent = "Save";
-  }
+.toggle-label input {
+  margin: 0;
+  width: auto;
+  accent-color: var(--accent);
 }
 
-function computeTotalDuration(structure) {
-  let total = 0;
-  structure.forEach(function (iv) {
-    if (iv.type === "circuit") {
-      const inner = (iv.intervals || []).reduce(function (sum, x) {
-        return sum + (parseInt(x.duration, 10) || 0);
-      }, 0);
-      const afterEach = iv.afterEach ? (iv.afterEach.duration || 0) * Math.max(0, iv.rounds - 1) : 0;
-      const afterCircuit = iv.afterCircuit ? (iv.afterCircuit.duration || 0) : 0;
-      total += (inner * iv.rounds) + afterEach + afterCircuit;
-    } else {
-      total += parseInt(iv.duration, 10) || 0;
-    }
-  });
-  return total;
+/* ============================================================
+   SECTION HEAD
+   ============================================================ */
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
-// ============================================================
-// DELETE TIMER
-// ============================================================
-
-async function deleteTimer(timerId) {
-  if (!confirm("Delete this timer? This cannot be undone.")) return;
-  try {
-    const res = await callAPI({ action: "deleteTimer", key: state.coachKey, timerId: timerId });
-    if (res && res.ok) {
-      showToast("Timer deleted");
-      loadTimers();
-    } else {
-      showToast((res && res.error) || "Delete failed", true);
-    }
-  } catch (e) {
-    showToast("Network error", true);
-  }
+.section-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
 }
 
-// ============================================================
-// HELPERS
-// ============================================================
-
-async function callAPI(payload) {
-  const params = new URLSearchParams();
-  Object.keys(payload).forEach(function (k) {
-    const v = payload[k];
-    if (v !== undefined && v !== null) params.append(k, String(v));
-  });
-  const url = ENDPOINT + "?" + params.toString();
-  const res = await fetch(url, { method: "GET", redirect: "follow" });
-  const text = await res.text();
-  try { return JSON.parse(text); }
-  catch (e) { return { ok: false, error: "Bad response: " + text.slice(0, 120) }; }
+.section-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-function formatDuration(seconds) {
-  const s = Math.max(0, seconds | 0);
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return m + ":" + String(r).padStart(2, "0");
+/* ============================================================
+   INTERVAL LIST
+   ============================================================ */
+
+.interval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+.interval-list.small {
+  gap: 6px;
 }
 
-function showToast(msg, isError) {
-  const t = $("toast");
-  t.textContent = msg;
-  t.classList.remove("hidden", "error", "warn");
-  if (isError) t.classList.add("error");
-  setTimeout(function () { t.classList.add("hidden"); }, 2400);
+.interval-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+
+.interval-row:active { border-color: var(--accent); }
+
+.interval-row.small {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.interval-row.dragging {
+  opacity: 0.4;
+}
+
+.interval-row.drag-over-top {
+  border-top: 3px solid var(--accent);
+}
+
+.interval-row.drag-over-bottom {
+  border-bottom: 3px solid var(--accent);
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-dim);
+  font-size: 16px;
+  padding: 4px 6px;
+  user-select: none;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  color: var(--accent);
+}
+
+.interval-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.interval-swatch.small {
+  width: 16px;
+  height: 16px;
+}
+
+.interval-info { flex: 1; min-width: 0; }
+
+.interval-name-row {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.interval-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.interval-row-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.interval-copy-btn,
+.interval-move-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.interval-copy-btn:active,
+.interval-move-btn:active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.interval-delete-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--danger);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.interval-delete-btn:active {
+  background: var(--danger);
+  color: #fff;
+}
+
+.interval-row.is-circuit {
+  border-color: var(--accent);
+  background: rgba(46, 108, 246, 0.08);
+}
+
+/* ============================================================
+   PASTE BAR
+   ============================================================ */
+
+.paste-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(46, 108, 246, 0.15);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.paste-label {
+  flex: 1;
+  color: var(--accent);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paste-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.paste-btn:active { opacity: 0.8; }
+
+.clear-clip-btn {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.clear-clip-btn:active { color: var(--danger); }
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px 16px;
+  overflow-y: auto;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 500px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  position: relative;
+  margin: auto 0;
+}
+
+.modal-card.wide { max-width: 640px; }
+
+.modal-card h2 {
+  margin: 0 0 16px;
+  font-size: 19px;
+}
+
+.modal-x {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* ============================================================
+   QUICK DURATIONS
+   ============================================================ */
+
+.quick-durations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.chip {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.chip:active,
+.chip.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ============================================================
+   COLOR PICKER
+   ============================================================ */
+
+.color-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.color-swatch {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.color-swatch.selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--success);
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 200;
+  max-width: calc(100% - 40px);
+  text-align: center;
+}
+
+.toast.error { background: var(--danger); }
+.toast.warn { background: var(--warn); color: #1a1a1a; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 480px) {
+  .form-card { padding: 14px; }
+  .section-head { gap: 8px; }
+  .section-actions { width: 100%; }
+  .section-actions button { flex: 1; }
 }
