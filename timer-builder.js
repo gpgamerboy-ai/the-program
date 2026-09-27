@@ -1,8 +1,8 @@
 // ============================================================
-// TIMER BUILDER — v4 (preview button)
+// TIMER BUILDER — v5 with corrected endpoint
 // ============================================================
 
-const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
 const COACH_KEY_STORAGE = "coachKey";
 
 const $ = function (id) { return document.getElementById(id); };
@@ -24,10 +24,6 @@ const COLORS = [
   "#b8f52c", "#ff3b30", "#c0c0c0", "#ff2cd9", "#00e5ff", "#ff9f1c",
   "#2e6cf6", "#9b59b6", "#f1c40f", "#e67e22", "#1abc9c", "#34495e"
 ];
-
-// ============================================================
-// STARTUP
-// ============================================================
 
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
@@ -66,10 +62,6 @@ function wireEvents() {
   $("circuitSave").addEventListener("click", saveCircuitFromModal);
   $("circuitAddInterval").addEventListener("click", addInnerInterval);
 }
-
-// ============================================================
-// KEY GATE
-// ============================================================
 
 async function handleKeySubmit() {
   const key = $("keyInput").value.trim();
@@ -110,10 +102,6 @@ function showEditor() {
   $("listView").classList.add("hidden");
   $("editorView").classList.remove("hidden");
 }
-
-// ============================================================
-// LOAD TIMERS
-// ============================================================
 
 async function loadTimers() {
   const list = $("timerList");
@@ -176,10 +164,6 @@ function parseIntervalCount(structureJson) {
     return raw.length;
   } catch (e) { return 0; }
 }
-
-// ============================================================
-// NEW / EDIT TIMER
-// ============================================================
 
 function createNewTimer() {
   state.editingTimer = {
@@ -248,10 +232,6 @@ function backToList() {
   loadTimers();
 }
 
-// ============================================================
-// PREVIEW
-// ============================================================
-
 function previewTimer() {
   const t = state.editingTimer;
   if (!t.timerId) {
@@ -262,10 +242,6 @@ function previewTimer() {
     "&preview=1&key=" + encodeURIComponent(state.coachKey);
   window.open(url, "_blank");
 }
-
-// ============================================================
-// RENDER INTERVAL EDITOR LIST
-// ============================================================
 
 function renderIntervalEditorList() {
   const t = state.editingTimer;
@@ -424,10 +400,6 @@ function performDragReorder(fromIndex, toIndex) {
   renderIntervalEditorList();
 }
 
-// ============================================================
-// COPY / PASTE
-// ============================================================
-
 function copyInterval(index) {
   const source = state.editingTimer.structure[index];
   state.clipboard = JSON.parse(JSON.stringify(source));
@@ -442,10 +414,6 @@ function pasteAt(insertIndex) {
   renderIntervalEditorList();
   showToast("Pasted");
 }
-
-// ============================================================
-// MOVE / DELETE
-// ============================================================
 
 function moveInterval(index, direction) {
   const arr = state.editingTimer.structure;
@@ -462,10 +430,6 @@ function deleteInterval(index) {
   state.editingTimer.structure.splice(index, 1);
   renderIntervalEditorList();
 }
-
-// ============================================================
-// INTERVAL MODAL
-// ============================================================
 
 function openNewIntervalModal() {
   state.editingIntervalIndex = -1;
@@ -525,10 +489,6 @@ function saveIntervalFromModal() {
   renderIntervalEditorList();
 }
 
-// ============================================================
-// COLOR PICKER
-// ============================================================
-
 function renderColorPicker() {
   const picker = $("colorPicker");
   picker.innerHTML = "";
@@ -555,10 +515,6 @@ function getSelectedColor() {
   const sel = document.querySelector(".color-swatch.selected");
   return sel ? sel.dataset.color : null;
 }
-
-// ============================================================
-// CIRCUIT MODAL
-// ============================================================
 
 function openNewCircuitModal() {
   state.editingCircuitIndex = -1;
@@ -687,10 +643,6 @@ function saveCircuitFromModal() {
   renderIntervalEditorList();
 }
 
-// ============================================================
-// SAVE TIMER
-// ============================================================
-
 async function saveTimer() {
   const t = state.editingTimer;
   const name = $("timerName").value.trim();
@@ -765,10 +717,6 @@ function computeTotalDuration(structure) {
   return total;
 }
 
-// ============================================================
-// DELETE TIMER
-// ============================================================
-
 async function deleteTimer(timerId) {
   if (!confirm("Delete this timer? This cannot be undone.")) return;
   try {
@@ -783,10 +731,6 @@ async function deleteTimer(timerId) {
     showToast("Network error", true);
   }
 }
-
-// ============================================================
-// HELPERS
-// ============================================================
 
 async function callAPI(payload) {
   const params = new URLSearchParams();
