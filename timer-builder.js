@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER BUILDER — v1
+// TIMER BUILDER — v2
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
@@ -10,28 +10,16 @@ const $ = function (id) { return document.getElementById(id); };
 const state = {
   coachKey: null,
   timers: [],
-  editingTimer: null,   // the timer object being edited
-  editingIntervalIndex: -1,  // -1 = new, >= 0 = editing existing
-  editingCircuitInnerIndex: -1,  // for inner interval editing inside circuit
-  editingCircuitInnerMode: false,
-  editingCircuit: null,  // the circuit being edited
-  editingCircuitIndex: -1,  // -1 = new, >= 0 = editing existing
+  editingTimer: null,
+  editingIntervalIndex: -1,
+  editingCircuit: null,
+  editingCircuitIndex: -1,
   quickDurationValue: null
 };
 
 const COLORS = [
-  "#b8f52c", // green - work default
-  "#ff3b30", // red - rest
-  "#c0c0c0", // grey - prep
-  "#ff2cd9", // magenta - mobility
-  "#00e5ff", // cyan - lift
-  "#ff9f1c", // orange - cooldown
-  "#2e6cf6", // blue
-  "#9b59b6", // purple
-  "#f1c40f", // yellow
-  "#e67e22", // deep orange
-  "#1abc9c", // teal
-  "#34495e"  // slate
+  "#b8f52c", "#ff3b30", "#c0c0c0", "#ff2cd9", "#00e5ff", "#ff9f1c",
+  "#2e6cf6", "#9b59b6", "#f1c40f", "#e67e22", "#1abc9c", "#34495e"
 ];
 
 // ============================================================
@@ -50,23 +38,16 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function wireEvents() {
-  // Key gate
   $("keyBtn").addEventListener("click", handleKeySubmit);
   $("keyInput").addEventListener("keydown", function (e) {
     if (e.key === "Enter") handleKeySubmit();
   });
-
-  // List view
   $("newTimerBtn").addEventListener("click", createNewTimer);
   $("signOutBtn").addEventListener("click", handleSignOut);
-
-  // Editor view
   $("backBtn").addEventListener("click", backToList);
   $("saveTimerBtn").addEventListener("click", saveTimer);
   $("addIntervalBtn").addEventListener("click", openNewIntervalModal);
   $("addCircuitBtn").addEventListener("click", openNewCircuitModal);
-
-  // Interval modal
   $("intervalClose").addEventListener("click", closeIntervalModal);
   $("intervalSave").addEventListener("click", saveIntervalFromModal);
   document.querySelectorAll(".chip[data-sec]").forEach(function (chip) {
@@ -77,8 +58,6 @@ function wireEvents() {
       chip.classList.add("selected");
     });
   });
-
-  // Circuit modal
   $("circuitClose").addEventListener("click", closeCircuitModal);
   $("circuitSave").addEventListener("click", saveCircuitFromModal);
   $("circuitAddInterval").addEventListener("click", addInnerInterval);
@@ -91,7 +70,6 @@ function wireEvents() {
 async function handleKeySubmit() {
   const key = $("keyInput").value.trim();
   if (!key) return;
-
   try {
     const res = await callAPI({ action: "coachAthletes", key: key });
     if (!res || !res.ok) {
@@ -138,16 +116,11 @@ async function loadTimers() {
   list.innerHTML = '<div class="empty-state">Loading timers…</div>';
 
   try {
-    const res = await callAPI({ action: "getTimers", key: state.coachKey });
+    const res = await callAPI({ action: "getTimersByKey", key: state.coachKey });
     if (!res || !res.ok) {
       list.innerHTML = '<div class="empty-state">Could not load timers.</div>';
       return;
     }
-
-    // getTimers requires a session token normally. If the request fails due to that, try the coach-only path.
-    // Backend is currently token-based; coach path will be added.
-    // For now, filter by "key" fallback. If that fails, show empty state.
-
     state.timers = res.timers || [];
     renderTimerList();
   } catch (e) {
@@ -163,7 +136,7 @@ function renderTimerList() {
   }
 
   list.innerHTML = "";
-  state.timers.forEach(function (timer, i) {
+  state.timers.forEach(function (timer) {
     const card = document.createElement("div");
     card.className = "timer-card";
 
@@ -265,16 +238,9 @@ function openEditor() {
 }
 
 function backToList() {
-  if (hasUnsavedChanges()) {
-    if (!confirm("Discard unsaved changes?")) return;
-  }
   state.editingTimer = null;
   showList();
   loadTimers();
-}
-
-function hasUnsavedChanges() {
-  return false; // For now, always allow back. Can be improved later.
 }
 
 // ============================================================
@@ -594,7 +560,6 @@ async function saveTimer() {
   if (!name) { showToast("Timer needs a name", true); return; }
   if (!t.structure.length) { showToast("Add at least one interval", true); return; }
 
-  // Auto-generate timerId if new
   let timerId = t.timerId;
   if (!timerId) {
     timerId = "T" + Date.now().toString().slice(-8);
