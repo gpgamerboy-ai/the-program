@@ -1,698 +1,651 @@
-/* ============================================================
-   TIMER BUILDER — styles v2
-   ============================================================ */
-
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-:root {
-  --bg: #0f1115;
-  --bg-card: #181b22;
-  --bg-elevated: #1a1e26;
-  --bg-input: #0f1115;
-  --border: #262a33;
-  --border-strong: #2c313c;
-  --text: #e8e8e8;
-  --text-dim: #9aa3b0;
-  --text-bright: #ffffff;
-  --accent: #2e6cf6;
-  --success: #1f7a3d;
-  --danger: #b3402f;
-  --warn: #d29a1f;
-  --radius: 10px;
-  --radius-lg: 14px;
-}
-
-html, body {
-  margin: 0;
-  padding: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  font-size: 16px;
-  line-height: 1.4;
-  -webkit-font-smoothing: antialiased;
-}
-
-.hidden { display: none !important; }
-a { color: var(--accent); text-decoration: none; }
-
-/* ============================================================
-   KEY GATE
-   ============================================================ */
-
-.key-gate {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-}
-
-.key-card {
-  width: 100%;
-  max-width: 400px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 28px 22px;
-}
-
-.key-card h1 {
-  margin: 0 0 4px;
-  font-size: 22px;
-  text-align: center;
-}
-
-.key-card .sub {
-  margin: 0 0 24px;
-  color: var(--text-dim);
-  font-size: 14px;
-  text-align: center;
-}
-
-.key-card input {
-  width: 100%;
-  padding: 14px 12px;
-  font-size: 16px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-input);
-  color: var(--text);
-}
-
-.key-card input:focus { outline: none; border-color: var(--accent); }
-
-.error-text {
-  color: var(--danger);
-  font-size: 13px;
-  text-align: center;
-  margin-top: 12px;
-  min-height: 16px;
-}
-
-/* ============================================================
-   BUTTONS
-   ============================================================ */
-
-.primary-btn {
-  width: 100%;
-  padding: 14px;
-  font-size: 15px;
-  font-weight: 700;
-  border-radius: var(--radius);
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-  margin-top: 16px;
-}
+// ============================================================
+// TIMER PLAYER — v3 with preview mode
+// ============================================================
+
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
+
+const state = {
+  timerId: null,
+  timer: null,
+  token: null,
+  coachKey: null,
+  isPreview: false,
+  athlete: null,
+  phaseIndex: 0,
+  round: 1,
+  totalRounds: 1,
+  timeLeft: 0,
+  isPaused: false,
+  isRunning: false,
+  isLocked: false,
+  structure: [],
+  intervalHandle: null,
+  inputPrompts: [],
+  collectedInputs: [],
+  pendingInput: null,
+  completedRounds: 0,
+  hasStarted: false,
+  startTime: null,
+  totalDuration: 0,
+  scrollLocked: false
+};
+
+const $ = function (id) { return document.getElementById(id); };
+
+const dom = {
+  startScreen: $("startScreen"),
+  startTitle: $("startTitle"),
+  startSubtitle: $("startSubtitle"),
+  startBtn: $("startBtn"),
+  timerApp: $("timerApp"),
+  masterClock: $("masterClock"),
+  statElapsed: $("statElapsed"),
+  statInterval: $("statInterval"),
+  statRemaining: $("statRemaining"),
+  intervalScroll: $("intervalScroll"),
+  intervalList: $("intervalList"),
+  hamburgerBtn: $("hamburgerBtn"),
+  pauseBtn: $("pauseBtn"),
+  pauseIcon: $("pauseIcon"),
+  playIcon: $("playIcon"),
+  lockBtn: $("lockBtn"),
+  lockOpenIcon: $("lockOpenIcon"),
+  lockClosedIcon: $("lockClosedIcon"),
+  restartBtn: $("restartBtn"),
+  exitBtn: $("exitBtn"),
+  lockOverlay: $("lockOverlay"),
+  unlockBtn: $("unlockBtn"),
+  hamburgerMenu: $("hamburgerMenu"),
+  menuExit: $("menuExit"),
+  menuReset: $("menuReset"),
+  menuLock: $("menuLock"),
+  menuBack: $("menuBack"),
+  inputModal: $("inputModal"),
+  inputPrompt: $("inputPrompt"),
+  inputField: $("inputField"),
+  inputSubmit: $("inputSubmit"),
+  completeModal: $("completeModal"),
+  completeSummary: $("completeSummary"),
+  completeDone: $("completeDone"),
+  errorMsg: $("errorMsg")
+};
+
+// ============================================================
+// STARTUP
+// ============================================================
+
+document.addEventListener("DOMContentLoaded", function () {
+  wireEvents();
+  loadTimerFromURL();
+});
+
+function wireEvents() {
+  dom.startBtn.addEventListener("click", handleStart);
+  dom.pauseBtn.addEventListener("click", togglePause);
+  dom.hamburgerBtn.addEventListener("click", openMenu);
+  dom.lockBtn.addEventListener("click", toggleLock);
+  dom.restartBtn.addEventListener("click", confirmRestart);
+  dom.exitBtn.addEventListener("click", confirmExit);
+  dom.unlockBtn.addEventListener("click", beginUnlockHold);
+  dom.unlockBtn.addEventListener("touchend", cancelUnlockHold);
+  dom.unlockBtn.addEventListener("mouseup", cancelUnlockHold);
+  dom.unlockBtn.addEventListener("mouseleave", cancelUnlockHold);
+  dom.menuExit.addEventListener("click", confirmExit);
+  dom.menuReset.addEventListener("click", confirmRestart);
+  dom.menuLock.addEventListener("click", lockFromMenu);
+  dom.menuBack.addEventListener("click", closeMenu);
+  dom.inputSubmit.addEventListener("click", submitInput);
+  dom.completeDone.addEventListener("click", function () {
+    dom.completeModal.classList.add("hidden");
+    if (window.history.length > 1) window.history.back();
+  });
+}
+
+// ============================================================
+// LOAD TIMER
+// ============================================================
+
+function loadTimerFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  state.timerId = params.get("id");
+  state.isPreview = params.get("preview") === "1";
+  state.coachKey = params.get("key");
+  state.token = params.get("token") || localStorage.getItem("sessionToken");
+  state.athlete = params.get("athlete") || localStorage.getItem("lastAthlete");
+
+  if (!state.timerId) { showError("No timer ID provided. Use ?id=T001"); return; }
+
+  if (state.isPreview) {
+    // Preview mode: needs coach key, no session token required
+    if (!state.coachKey) { showError("Preview mode requires ?key=COACH_KEY"); return; }
+  } else {
+    // Normal mode: needs session token
+    if (!state.token) { showError("No session token. Log in to the athlete app first."); return; }
+  }
+
+  fetchTimer();
+}
+
+async function fetchTimer() {
+  try {
+    const params = new URLSearchParams();
+    params.append("action", "getTimer");
+    params.append("timerId", state.timerId);
+
+    if (state.isPreview) {
+      params.append("key", state.coachKey);
+    } else {
+      params.append("token", state.token);
+    }
+
+    const res = await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" });
+    const data = await res.json();
+    if (!data || !data.ok) {
+      showError((data && data.error) || "Could not load timer");
+      return;
+    }
+    state.timer = data.timer;
+    dom.startTitle.textContent = state.timer.timerName || "Timer";
+    dom.startSubtitle.textContent = state.isPreview
+      ? "Preview mode — no logging"
+      : "Tap START to begin";
+  } catch (e) {
+    showError("Network error loading timer");
+  }
+}
+
+// ============================================================
+// CIRCUIT ENGINE
+// ============================================================
+
+function expandStructure(raw) {
+  const flat = [];
+  (raw || []).forEach(function (iv) {
+    if (iv.type === "circuit") {
+      const rounds = parseInt(iv.rounds, 10) || 1;
+      const inner = iv.intervals || [];
+      for (let r = 1; r <= rounds; r++) {
+        inner.forEach(function (innerIv) {
+          const copy = Object.assign({}, innerIv);
+          copy.roundNumber = r;
+          copy.totalRoundCount = rounds;
+          flat.push(copy);
+        });
+        if (iv.afterEach && r < rounds) flat.push(Object.assign({}, iv.afterEach));
+      }
+      if (iv.afterCircuit) flat.push(Object.assign({}, iv.afterCircuit));
+    } else {
+      flat.push(Object.assign({}, iv));
+    }
+  });
+  return flat;
+}
+
+// ============================================================
+// START TIMER
+// ============================================================
+
+function handleStart() {
+  state.hasStarted = true;
+  state.startTime = Date.now();
+
+  dom.startScreen.classList.add("hidden");
+  dom.timerApp.classList.remove("hidden");
+
+  const t = state.timer;
+
+  let rawStructure = [];
+  try { rawStructure = JSON.parse(t.structure || "[]"); } catch (e) { rawStructure = []; }
+  state.structure = expandStructure(rawStructure);
+
+  try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); } catch (e) { state.inputPrompts = []; }
+
+  if (!state.structure.length) {
+    showError("Timer has no intervals defined");
+    return;
+  }
+
+  state.totalDuration = state.structure.reduce(function (sum, iv) {
+    return sum + (parseInt(iv.duration, 10) || 0);
+  }, 0);
+
+  const workIntervals = state.structure.filter(function (iv) { return iv.type === "work"; });
+  state.totalRounds = workIntervals.length || 1;
+
+  state.phaseIndex = 0;
+  state.completedRounds = 0;
 
-.primary-btn.small {
-  width: auto;
-  padding: 8px 16px;
-  font-size: 13px;
-  margin-top: 0;
-}
-
-.primary-btn:active { opacity: 0.8; }
-.primary-btn:disabled { opacity: 0.6; }
-
-.secondary-btn {
-  padding: 10px 16px;
-  font-size: 14px;
-  font-weight: 600;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
-  color: var(--text);
-  cursor: pointer;
-}
-
-.secondary-btn.small {
-  padding: 6px 12px;
-  font-size: 12px;
-}
-
-.secondary-btn:active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
+  renderIntervalList();
+
+  speak(t.ttsTitle || t.timerName || "Starting timer");
 
-.icon-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.icon-btn:active {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-/* ============================================================
-   APP HEADER
-   ============================================================ */
+  setTimeout(function () { beginInterval(0); }, 3000);
+}
+
+// ============================================================
+// INTERVAL CONTROL
+// ============================================================
 
-.app-view { min-height: 100vh; }
+function beginInterval(index) {
+  if (index >= state.structure.length) { completeTimer(); return; }
+
+  const iv = state.structure[index];
+  state.phaseIndex = index;
+  state.timeLeft = parseInt(iv.duration, 10) || 0;
+  state.isRunning = true;
+  state.isPaused = false;
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  background: var(--bg-card);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 20;
-}
+  dom.pauseIcon.classList.remove("hidden");
+  dom.playIcon.classList.add("hidden");
 
-.app-header h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  flex: 1;
-  text-align: center;
-}
+  document.body.className = "phase-" + (iv.type || "work");
+  updateMasterClock();
+  updateStats();
+  updateIntervalList();
+  scrollToCurrent();
 
-.app-header h1:first-child { text-align: left; }
+  speak(iv.name || iv.type);
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-/* ============================================================
-   TIMER LIST
-   ============================================================ */
+  const nextIv = state.structure[index + 1];
+  if (nextIv && shouldCue("nextUp")) {
+    setTimeout(function () {
+      speak("Next: " + (nextIv.name || nextIv.type));
+    }, 1500);
+  }
 
-.timer-list {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 16px;
-  padding-bottom: 60px;
+  startTicking();
 }
 
-.timer-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  margin-bottom: 10px;
-  cursor: pointer;
-}
-
-.timer-card:active { border-color: var(--accent); }
+function startTicking() {
+  if (state.intervalHandle) clearInterval(state.intervalHandle);
 
-.timer-card-info { flex: 1; min-width: 0; }
-
-.timer-card-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-bright);
-  margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+  state.intervalHandle = setInterval(function () {
+    if (state.isPaused) return;
 
-.timer-card-meta {
-  font-size: 12px;
-  color: var(--text-dim);
-}
+    state.timeLeft--;
+
+    const iv = state.structure[state.phaseIndex];
+    const halfwayThreshold = Math.floor((parseInt(iv.duration, 10) || 0) / 2);
+    if (state.timeLeft === halfwayThreshold && shouldCue("halfway")) speak("Halfway");
+    if (state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) speak(String(state.timeLeft));
 
-.timer-card-delete {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--danger);
-  font-size: 18px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
+    if (state.timeLeft <= 0) {
+      clearInterval(state.intervalHandle);
+      state.isRunning = false;
+      endInterval();
+      return;
+    }
 
-.timer-card-delete:active {
-  background: var(--danger);
-  color: #fff;
+    updateMasterClock();
+    updateStats();
+  }, 1000);
 }
 
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--text-dim);
-  font-size: 14px;
-}
+function endInterval() {
+  const iv = state.structure[state.phaseIndex];
+  if (iv.type === "work") state.completedRounds++;
 
-.empty-state.small {
-  padding: 20px;
-  font-size: 13px;
-}
-
-/* ============================================================
-   EDITOR MAIN
-   ============================================================ */
-
-.editor-main {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 16px;
-  padding-bottom: 80px;
-}
+  const prompt = state.inputPrompts.find(function (p) {
+    return p.atEnd && (p.afterInterval === state.phaseIndex + 1 || p.afterType === iv.type);
+  });
 
-.form-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 18px;
-  margin-bottom: 16px;
+  if (prompt) {
+    state.pendingInput = prompt;
+    showInputPrompt(prompt);
+    return;
+  }
+  nextInterval();
 }
 
-.form-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 16px 0 6px;
+function nextInterval() {
+  const next = state.phaseIndex + 1;
+  if (next >= state.structure.length) { completeTimer(); }
+  else { beginInterval(next); }
 }
 
-.form-label:first-child { margin-top: 0; }
+// ============================================================
+// JUMP TO INTERVAL
+// ============================================================
 
-.form-card input[type="text"],
-.form-card input[type="number"],
-.form-card select,
-.form-card textarea {
-  width: 100%;
-  padding: 12px;
-  font-size: 15px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-strong);
-  background: var(--bg-input);
-  color: var(--text);
-  font-family: inherit;
-}
+function jumpToInterval(index) {
+  if (state.isLocked) return;
 
-.form-card input:focus,
-.form-card select:focus,
-.form-card textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-}
+  const iv = state.structure[state.phaseIndex];
+  const elapsedInCurrent = iv ? (parseInt(iv.duration, 10) - state.timeLeft) : 0;
+  const meaningful = elapsedInCurrent > 3 && index !== state.phaseIndex;
 
-.form-card textarea {
-  resize: vertical;
-  min-height: 44px;
-}
+  if (meaningful) {
+    if (!confirm("Jump to this interval? Current interval will be skipped.")) return;
+  }
 
-/* ============================================================
-   TOGGLES
-   ============================================================ */
+  if (state.intervalHandle) clearInterval(state.intervalHandle);
+  state.isRunning = false;
+  state.isPaused = false;
 
-.toggle-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 4px;
-}
+  dom.pauseIcon.classList.remove("hidden");
+  dom.playIcon.classList.add("hidden");
 
-.toggle-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  font-size: 13px;
-  cursor: pointer;
-  user-select: none;
-}
+  let workCount = 0;
+  for (let i = 0; i < index; i++) {
+    if (state.structure[i].type === "work") workCount++;
+  }
+  state.completedRounds = workCount;
 
-.toggle-label input {
-  margin: 0;
-  width: auto;
-  accent-color: var(--accent);
+  beginInterval(index);
 }
 
-/* ============================================================
-   SECTION HEAD
-   ============================================================ */
+// ============================================================
+// RENDERING
+// ============================================================
 
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
+function renderIntervalList() {
+  dom.intervalList.innerHTML = "";
 
-.section-head h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-}
+  state.structure.forEach(function (iv, i) {
+    const card = document.createElement("div");
+    card.className = "interval-card";
+    card.dataset.index = i;
+    card.dataset.type = iv.type || "work";
+    card.style.cursor = "pointer";
 
-.section-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
+    const color = iv.color || colorForType(iv.type);
+    card.style.background = color;
 
-/* ============================================================
-   INTERVAL LIST
-   ============================================================ */
+    const label = getLabelForPosition(i);
+    const name = iv.name || iv.type || "";
+    const dur = formatDuration(parseInt(iv.duration, 10) || 0);
 
-.interval-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
+    card.innerHTML =
+      '<div class="iv-label">' + escapeHtml(label) + '</div>' +
+      '<div class="iv-name">' + escapeHtml(name) + '</div>' +
+      '<div class="iv-duration">' + dur + '</div>';
 
-.interval-list.small {
-  gap: 6px;
-}
+    card.addEventListener("click", function () {
+      jumpToInterval(i);
+    });
 
-.interval-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--bg-input);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: border-color 0.15s, opacity 0.15s;
+    dom.intervalList.appendChild(card);
+  });
 }
 
-.interval-row:active { border-color: var(--accent); }
+function updateIntervalList() {
+  const cards = dom.intervalList.querySelectorAll(".interval-card");
+  cards.forEach(function (card, i) {
+    card.classList.remove("current", "next", "upcoming", "past");
 
-.interval-row.small {
-  padding: 8px 12px;
-  font-size: 13px;
-}
+    if (i < state.phaseIndex) card.classList.add("past");
+    else if (i === state.phaseIndex) card.classList.add("current");
+    else if (i === state.phaseIndex + 1) card.classList.add("next");
+    else card.classList.add("upcoming");
 
-.interval-row.dragging {
-  opacity: 0.4;
+    const label = card.querySelector(".iv-label");
+    if (label) label.textContent = getLabelForPosition(i);
+  });
 }
 
-.interval-row.drag-over-top {
-  border-top: 3px solid var(--accent);
-}
+function scrollToCurrent() {
+  if (state.scrollLocked || state.isLocked) return;
+  const currentCard = dom.intervalList.querySelector(".interval-card.current");
+  if (!currentCard) return;
 
-.interval-row.drag-over-bottom {
-  border-bottom: 3px solid var(--accent);
-}
+  const scrollBox = dom.intervalScroll;
+  const cardTop = currentCard.offsetTop;
+  const cardHeight = currentCard.offsetHeight;
+  const boxHeight = scrollBox.clientHeight;
 
-.drag-handle {
-  cursor: grab;
-  color: var(--text-dim);
-  font-size: 16px;
-  padding: 4px 6px;
-  user-select: none;
-  letter-spacing: -2px;
-  line-height: 1;
-}
+  const targetScroll = cardTop - (boxHeight / 2) + (cardHeight / 2);
 
-.drag-handle:active {
-  cursor: grabbing;
-  color: var(--accent);
+  scrollBox.scrollTo({ top: targetScroll, behavior: "smooth" });
 }
 
-.interval-swatch {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  border: 1px solid rgba(255,255,255,0.15);
+function getLabelForPosition(i) {
+  if (i < state.phaseIndex) return "PAST";
+  if (i === state.phaseIndex) return "CURRENT INTERVAL";
+  if (i === state.phaseIndex + 1) return "UP NEXT";
+  return "UPCOMING";
 }
+
+// ============================================================
+// MASTER CLOCK + STATS
+// ============================================================
 
-.interval-swatch.small {
-  width: 16px;
-  height: 16px;
+function updateMasterClock() {
+  dom.masterClock.textContent = formatDuration(state.timeLeft);
 }
 
-.interval-info { flex: 1; min-width: 0; }
+function updateStats() {
+  const elapsed = state.startTime
+    ? Math.floor((Date.now() - state.startTime) / 1000)
+    : 0;
 
-.interval-name-row {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-bright);
-  margin-bottom: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+  const totalIntervals = state.structure.length;
+  const currentIntervalNum = state.phaseIndex + 1;
 
-.interval-meta {
-  font-size: 12px;
-  color: var(--text-dim);
-}
+  const remainingTotal =
+    state.timeLeft +
+    state.structure.slice(state.phaseIndex + 1).reduce(function (sum, iv) {
+      return sum + (parseInt(iv.duration, 10) || 0);
+    }, 0);
 
-.interval-row-actions {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  flex-shrink: 0;
+  dom.statElapsed.textContent = formatDuration(elapsed);
+  dom.statInterval.textContent = currentIntervalNum + "/" + totalIntervals;
+  dom.statRemaining.textContent = formatDuration(remainingTotal);
 }
 
-.interval-copy-btn,
-.interval-move-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 14px;
-  cursor: pointer;
-}
+// ============================================================
+// CONTROLS
+// ============================================================
 
-.interval-copy-btn:active,
-.interval-move-btn:active {
-  color: var(--accent);
-  border-color: var(--accent);
+function togglePause() {
+  state.isPaused = !state.isPaused;
+  if (state.isPaused) {
+    dom.pauseIcon.classList.add("hidden");
+    dom.playIcon.classList.remove("hidden");
+    speak("Paused");
+  } else {
+    dom.pauseIcon.classList.remove("hidden");
+    dom.playIcon.classList.add("hidden");
+    speak("Resume");
+  }
 }
 
-.interval-delete-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--danger);
-  font-size: 16px;
-  cursor: pointer;
+function confirmRestart() {
+  if (confirm("Restart timer from the beginning?")) {
+    if (state.intervalHandle) clearInterval(state.intervalHandle);
+    state.phaseIndex = 0;
+    state.completedRounds = 0;
+    state.isPaused = false;
+    state.isRunning = false;
+    state.startTime = Date.now();
+    closeMenu();
+    beginInterval(0);
+  }
 }
 
-.interval-delete-btn:active {
-  background: var(--danger);
-  color: #fff;
+function confirmExit() {
+  if (confirm("Exit timer? Progress will be lost.")) {
+    if (state.intervalHandle) clearInterval(state.intervalHandle);
+    if (window.history.length > 1) window.history.back();
+  }
 }
 
-.interval-row.is-circuit {
-  border-color: var(--accent);
-  background: rgba(46, 108, 246, 0.08);
-}
+// ============================================================
+// LOCK
+// ============================================================
 
-/* ============================================================
-   PASTE BAR
-   ============================================================ */
+let unlockTimer = null;
 
-.paste-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: rgba(46, 108, 246, 0.15);
-  border: 1px dashed var(--accent);
-  border-radius: var(--radius);
-  font-size: 13px;
-  margin-bottom: 6px;
+function toggleLock() {
+  if (state.isLocked) unlockLock();
+  else lockInterface();
 }
 
-.paste-label {
-  flex: 1;
-  color: var(--accent);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+function lockInterface() {
+  state.isLocked = true;
+  state.scrollLocked = true;
+  dom.lockOverlay.classList.remove("hidden");
+  dom.intervalScroll.style.overflowY = "hidden";
+  closeMenu();
 }
 
-.paste-btn {
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 700;
-  border-radius: 6px;
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
+function unlockLock() {
+  state.isLocked = false;
+  state.scrollLocked = false;
+  dom.lockOverlay.classList.add("hidden");
+  dom.intervalScroll.style.overflowY = "auto";
 }
 
-.paste-btn:active { opacity: 0.8; }
+function beginUnlockHold() {
+  unlockTimer = setTimeout(function () {
+    unlockLock();
+  }, 2000);
+}
 
-.clear-clip-btn {
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
+function cancelUnlockHold() {
+  if (unlockTimer) {
+    clearTimeout(unlockTimer);
+    unlockTimer = null;
+  }
 }
 
-.clear-clip-btn:active { color: var(--danger); }
+function lockFromMenu() {
+  closeMenu();
+  setTimeout(lockInterface, 200);
+}
 
-/* ============================================================
-   MODALS
-   ============================================================ */
+// ============================================================
+// HAMBURGER MENU
+// ============================================================
 
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  z-index: 100;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 20px 16px;
-  overflow-y: auto;
+function openMenu() {
+  dom.hamburgerMenu.classList.remove("hidden");
+  state.isPaused = true;
 }
 
-.modal-card {
-  width: 100%;
-  max-width: 500px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 22px 20px;
-  position: relative;
-  margin: auto 0;
+function closeMenu() {
+  dom.hamburgerMenu.classList.add("hidden");
+  if (state.isRunning && !state.isLocked) {
+    state.isPaused = false;
+  }
 }
 
-.modal-card.wide { max-width: 640px; }
+// ============================================================
+// INPUT PROMPTS
+// ============================================================
 
-.modal-card h2 {
-  margin: 0 0 16px;
-  font-size: 19px;
+function showInputPrompt(prompt) {
+  state.pendingInput = prompt;
+  dom.inputPrompt.textContent = prompt.prompt || "Enter value";
+  dom.inputField.value = "";
+  dom.inputModal.classList.remove("hidden");
+  dom.inputField.focus();
 }
 
-.modal-x {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
-  color: var(--text);
-  font-size: 20px;
-  cursor: pointer;
-}
+function submitInput() {
+  const value = dom.inputField.value.trim();
+  if (value === "") return;
 
-/* ============================================================
-   QUICK DURATIONS
-   ============================================================ */
+  state.collectedInputs.push({
+    prompt: state.pendingInput.prompt,
+    value: value,
+    intervalIndex: state.phaseIndex
+  });
 
-.quick-durations {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+  dom.inputModal.classList.add("hidden");
+  state.pendingInput = null;
+  nextInterval();
 }
 
-.chip {
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 999px;
-  border: 1px solid var(--border-strong);
-  background: var(--bg-input);
-  color: var(--text-dim);
-  cursor: pointer;
-}
+// ============================================================
+// COMPLETE
+// ============================================================
 
-.chip:active,
-.chip.selected {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
+async function completeTimer() {
+  if (state.intervalHandle) clearInterval(state.intervalHandle);
+  state.isRunning = false;
+
+  const summary = "Completed " + state.completedRounds + " round" + (state.completedRounds === 1 ? "" : "s");
+  dom.completeSummary.textContent = state.isPreview ? summary + " (preview — not logged)" : summary;
+  dom.completeModal.classList.remove("hidden");
 
-/* ============================================================
-   COLOR PICKER
-   ============================================================ */
+  speak("Timer complete");
 
-.color-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-  gap: 6px;
-  margin-top: 4px;
+  if (!state.isPreview) {
+    await logTimerCompletion();
+  }
 }
 
-.color-swatch {
-  aspect-ratio: 1;
-  border-radius: 8px;
-  border: 2px solid transparent;
-  cursor: pointer;
+async function logTimerCompletion() {
+  const inputData = state.collectedInputs.length ? JSON.stringify(state.collectedInputs) : "";
+  const firstInput = state.collectedInputs.length ? state.collectedInputs[0].value : "";
+
+  const params = new URLSearchParams();
+  params.append("action", "logSet");
+  params.append("token", state.token);
+  params.append("plan", state.timer.timerType || "timer");
+  params.append("exercise", "Timer: " + (state.timer.timerName || state.timerId));
+  params.append("set", "1");
+  params.append("target", String(state.timer.totalDuration || 0));
+  params.append("reps", String(firstInput));
+  params.append("duration", String(state.timer.totalDuration || 0));
+  params.append("roundsCompleted", String(state.completedRounds));
+  params.append("inputData", inputData);
+  params.append("notes", "");
+
+  try { await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" }); } catch (e) {}
 }
+
+// ============================================================
+// HELPERS
+// ============================================================
 
-.color-swatch.selected {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px var(--accent);
+function colorForType(type) {
+  if (type === "rest") return "#ff3b30";
+  if (type === "prep") return "#c0c0c0";
+  if (type === "mobility") return "#ff2cd9";
+  if (type === "lift") return "#00e5ff";
+  if (type === "cooldown") return "#ff9f1c";
+  if (type === "circuit") return "#00e5ff";
+  return "#b8f52c";
 }
 
-/* ============================================================
-   TOAST
-   ============================================================ */
+function formatDuration(seconds) {
+  const s = Math.max(0, seconds | 0);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m + ":" + String(r).padStart(2, "0");
+}
 
-.toast {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--success);
-  color: #fff;
-  padding: 12px 22px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 600;
-  z-index: 200;
-  max-width: calc(100% - 40px);
-  text-align: center;
+function speak(text) {
+  if (!text) return;
+  if (!("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.1;
+    utterance.pitch = 1.0;
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {}
 }
 
-.toast.error { background: var(--danger); }
-.toast.warn { background: var(--warn); color: #1a1a1a; }
+function shouldCue(name) {
+  if (!state.timer || !state.timer.ttsCues) return true;
+  try {
+    const cues = JSON.parse(state.timer.ttsCues);
+    return cues[name] !== false;
+  } catch (e) { return true; }
+}
 
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
-@media (max-width: 480px) {
-  .form-card { padding: 14px; }
-  .section-head { gap: 8px; }
-  .section-actions { width: 100%; }
-  .section-actions button { flex: 1; }
+function showError(msg) {
+  dom.errorMsg.textContent = msg;
+  dom.errorMsg.classList.remove("hidden");
+  setTimeout(function () { dom.errorMsg.classList.add("hidden"); }, 6000);
 }
