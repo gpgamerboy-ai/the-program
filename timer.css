@@ -266,3 +266,25 @@ body.phase-cooldown .progress-fill { background: #e29a4a; }
   transform: scale(0.98);
   opacity: 0.9;
 }
+
+/* Next-up preview */
+.next-up {
+  font-size: 18px;
+  font-weight: 600;
+  color: #9aa3b0;
+  margin-bottom: 20px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  letter-spacing: 0.5px;
+}
+
+.next-up strong {
+  color: #e8e8e8;
+  font-weight: 700;
+}
+
+.next-up.hidden {
+  display: none;
+}
+
