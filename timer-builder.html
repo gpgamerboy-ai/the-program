@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>Timer Builder</title>
+  <link rel="stylesheet" href="timer-builder.css?v=1" />
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- COACH KEY GATE                                               -->
+  <!-- ============================================================ -->
+  <section id="keyGate" class="key-gate">
+    <div class="key-card">
+      <h1>Timer Builder</h1>
+      <p class="sub">Coach access required</p>
+      <input id="keyInput" type="password" placeholder="Coach key" />
+      <button id="keyBtn" class="primary-btn">Enter</button>
+      <div id="keyErr" class="error-text"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- MAIN VIEW — Timer list                                       -->
+  <!-- ============================================================ -->
+  <section id="listView" class="app-view hidden">
+    <header class="app-header">
+      <h1>Timers</h1>
+      <div class="header-actions">
+        <button id="newTimerBtn" class="secondary-btn">+ New Timer</button>
+        <button id="signOutBtn" class="icon-btn" title="Sign out">⏻</button>
+      </div>
+    </header>
+
+    <main id="timerList" class="timer-list">
+      <div class="empty-state">Loading timers…</div>
+    </main>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- EDITOR VIEW                                                  -->
+  <!-- ============================================================ -->
+  <section id="editorView" class="app-view hidden">
+    <header class="app-header">
+      <button id="backBtn" class="icon-btn" title="Back">←</button>
+      <h1 id="editorTitle">Edit Timer</h1>
+      <button id="saveTimerBtn" class="primary-btn small">Save</button>
+    </header>
+
+    <main class="editor-main">
+      <!-- Timer meta -->
+      <div class="form-card">
+        <label class="form-label">Timer Name</label>
+        <input id="timerName" type="text" placeholder="e.g. Tabata 20/10" />
+
+        <label class="form-label">Timer Type</label>
+        <select id="timerType">
+          <option value="simple">Simple</option>
+          <option value="intervals">Intervals</option>
+          <option value="compound">Compound</option>
+        </select>
+
+        <label class="form-label">TTS Title (spoken at start)</label>
+        <input id="ttsTitle" type="text" placeholder="e.g. Tabata. 8 rounds. Let's go." />
+
+        <label class="form-label">Voice Cues</label>
+        <div class="toggle-row">
+          <label class="toggle-label">
+            <input id="cueHalfway" type="checkbox" checked />
+            <span>Halfway alerts</span>
+          </label>
+          <label class="toggle-label">
+            <input id="cueCountdown" type="checkbox" checked />
+            <span>3-2-1 countdown</span>
+          </label>
+          <label class="toggle-label">
+            <input id="cueNextUp" type="checkbox" checked />
+            <span>Next-up warning</span>
+          </label>
+        </div>
+
+        <label class="form-label">Notes</label>
+        <textarea id="timerNotes" rows="2" placeholder="Optional notes"></textarea>
+      </div>
+
+      <!-- Intervals -->
+      <div class="form-card">
+        <div class="section-head">
+          <h2>Intervals</h2>
+          <div class="section-actions">
+            <button id="addIntervalBtn" class="secondary-btn small">+ Interval</button>
+            <button id="addCircuitBtn" class="secondary-btn small">+ Circuit</button>
+          </div>
+        </div>
+
+        <div id="intervalList" class="interval-list">
+          <div class="empty-state">No intervals yet. Add one.</div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- INTERVAL EDITOR MODAL                                        -->
+  <!-- ============================================================ -->
+  <div id="intervalModal" class="modal hidden">
+    <div class="modal-card">
+      <button id="intervalClose" class="modal-x">×</button>
+      <h2 id="intervalModalTitle">Add Interval</h2>
+
+      <label class="form-label">Name</label>
+      <input id="ivName" type="text" placeholder="e.g. Work" />
+
+      <label class="form-label">Type</label>
+      <select id="ivType">
+        <option value="work">Work</option>
+        <option value="rest">Rest</option>
+        <option value="prep">Prep</option>
+        <option value="mobility">Mobility</option>
+        <option value="lift">Lift</option>
+        <option value="cooldown">Cooldown</option>
+      </select>
+
+      <label class="form-label">Duration (seconds)</label>
+      <input id="ivDuration" type="number" min="1" placeholder="20" />
+      <div class="quick-durations">
+        <button class="chip" data-sec="10">10s</button>
+        <button class="chip" data-sec="15">15s</button>
+        <button class="chip" data-sec="20">20s</button>
+        <button class="chip" data-sec="30">30s</button>
+        <button class="chip" data-sec="45">45s</button>
+        <button class="chip" data-sec="60">1m</button>
+        <button class="chip" data-sec="90">1:30</button>
+        <button class="chip" data-sec="120">2m</button>
+        <button class="chip" data-sec="180">3m</button>
+        <button class="chip" data-sec="300">5m</button>
+      </div>
+
+      <label class="form-label">Color</label>
+      <div id="colorPicker" class="color-picker"></div>
+      <input id="ivColorCustom" type="text" placeholder="#b8f52c" />
+
+      <button id="intervalSave" class="primary-btn">Save Interval</button>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- CIRCUIT EDITOR MODAL                                         -->
+  <!-- ============================================================ -->
+  <div id="circuitModal" class="modal hidden">
+    <div class="modal-card wide">
+      <button id="circuitClose" class="modal-x">×</button>
+      <h2>Add Circuit</h2>
+
+      <label class="form-label">Circuit Name</label>
+      <input id="circuitName" type="text" placeholder="e.g. Block 1" />
+
+      <label class="form-label">Rounds</label>
+      <input id="circuitRounds" type="number" min="1" value="8" />
+
+      <label class="form-label">Inner Intervals</label>
+      <div id="circuitIntervalList" class="interval-list small">
+        <div class="empty-state small">No intervals yet</div>
+      </div>
+      <button id="circuitAddInterval" class="secondary-btn small">+ Add Inner Interval</button>
+
+      <label class="form-label">Rest Between Rounds (optional, seconds)</label>
+      <input id="circuitAfterEach" type="number" min="0" placeholder="0" />
+
+      <label class="form-label">Rest After Circuit (optional, seconds)</label>
+      <input id="circuitAfterCircuit" type="number" min="0" placeholder="60" />
+
+      <button id="circuitSave" class="primary-btn">Save Circuit</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="timer-builder.js?v=1"></script>
+</body>
+</html>
