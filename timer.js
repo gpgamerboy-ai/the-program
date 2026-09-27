@@ -1,8 +1,8 @@
 // ============================================================
-// TIMER PLAYER — v3 with preview mode
+// TIMER PLAYER — v4 with corrected endpoint
 // ============================================================
 
-const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
 
 const state = {
   timerId: null,
@@ -70,10 +70,6 @@ const dom = {
   errorMsg: $("errorMsg")
 };
 
-// ============================================================
-// STARTUP
-// ============================================================
-
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
   loadTimerFromURL();
@@ -101,10 +97,6 @@ function wireEvents() {
   });
 }
 
-// ============================================================
-// LOAD TIMER
-// ============================================================
-
 function loadTimerFromURL() {
   const params = new URLSearchParams(window.location.search);
   state.timerId = params.get("id");
@@ -116,10 +108,8 @@ function loadTimerFromURL() {
   if (!state.timerId) { showError("No timer ID provided. Use ?id=T001"); return; }
 
   if (state.isPreview) {
-    // Preview mode: needs coach key, no session token required
     if (!state.coachKey) { showError("Preview mode requires ?key=COACH_KEY"); return; }
   } else {
-    // Normal mode: needs session token
     if (!state.token) { showError("No session token. Log in to the athlete app first."); return; }
   }
 
@@ -154,10 +144,6 @@ async function fetchTimer() {
   }
 }
 
-// ============================================================
-// CIRCUIT ENGINE
-// ============================================================
-
 function expandStructure(raw) {
   const flat = [];
   (raw || []).forEach(function (iv) {
@@ -180,10 +166,6 @@ function expandStructure(raw) {
   });
   return flat;
 }
-
-// ============================================================
-// START TIMER
-// ============================================================
 
 function handleStart() {
   state.hasStarted = true;
@@ -221,10 +203,6 @@ function handleStart() {
 
   setTimeout(function () { beginInterval(0); }, 3000);
 }
-
-// ============================================================
-// INTERVAL CONTROL
-// ============================================================
 
 function beginInterval(index) {
   if (index >= state.structure.length) { completeTimer(); return; }
@@ -303,10 +281,6 @@ function nextInterval() {
   else { beginInterval(next); }
 }
 
-// ============================================================
-// JUMP TO INTERVAL
-// ============================================================
-
 function jumpToInterval(index) {
   if (state.isLocked) return;
 
@@ -333,10 +307,6 @@ function jumpToInterval(index) {
 
   beginInterval(index);
 }
-
-// ============================================================
-// RENDERING
-// ============================================================
 
 function renderIntervalList() {
   dom.intervalList.innerHTML = "";
@@ -405,10 +375,6 @@ function getLabelForPosition(i) {
   return "UPCOMING";
 }
 
-// ============================================================
-// MASTER CLOCK + STATS
-// ============================================================
-
 function updateMasterClock() {
   dom.masterClock.textContent = formatDuration(state.timeLeft);
 }
@@ -431,10 +397,6 @@ function updateStats() {
   dom.statInterval.textContent = currentIntervalNum + "/" + totalIntervals;
   dom.statRemaining.textContent = formatDuration(remainingTotal);
 }
-
-// ============================================================
-// CONTROLS
-// ============================================================
 
 function togglePause() {
   state.isPaused = !state.isPaused;
@@ -468,10 +430,6 @@ function confirmExit() {
     if (window.history.length > 1) window.history.back();
   }
 }
-
-// ============================================================
-// LOCK
-// ============================================================
 
 let unlockTimer = null;
 
@@ -513,10 +471,6 @@ function lockFromMenu() {
   setTimeout(lockInterface, 200);
 }
 
-// ============================================================
-// HAMBURGER MENU
-// ============================================================
-
 function openMenu() {
   dom.hamburgerMenu.classList.remove("hidden");
   state.isPaused = true;
@@ -528,10 +482,6 @@ function closeMenu() {
     state.isPaused = false;
   }
 }
-
-// ============================================================
-// INPUT PROMPTS
-// ============================================================
 
 function showInputPrompt(prompt) {
   state.pendingInput = prompt;
@@ -555,10 +505,6 @@ function submitInput() {
   state.pendingInput = null;
   nextInterval();
 }
-
-// ============================================================
-// COMPLETE
-// ============================================================
 
 async function completeTimer() {
   if (state.intervalHandle) clearInterval(state.intervalHandle);
@@ -594,10 +540,6 @@ async function logTimerCompletion() {
 
   try { await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" }); } catch (e) {}
 }
-
-// ============================================================
-// HELPERS
-// ============================================================
 
 function colorForType(type) {
   if (type === "rest") return "#ff3b30";
