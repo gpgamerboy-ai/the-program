@@ -220,3 +220,49 @@ body.phase-cooldown .progress-fill { background: #e29a4a; }
   text-align: center;
   z-index: 200;
 }
+
+
+/* Start screen */
+.start-screen {
+  position: fixed;
+  inset: 0;
+  background: #0f1115;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.start-card {
+  text-align: center;
+  padding: 30px;
+}
+
+.start-card h1 {
+  font-size: 32px;
+  margin: 0 0 12px;
+  color: #ffffff;
+}
+
+.start-sub {
+  font-size: 16px;
+  color: #9aa3b0;
+  margin: 0 0 32px;
+}
+
+.start-btn {
+  padding: 24px 60px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  border-radius: 14px;
+  border: none;
+  background: #2e6cf6;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.start-btn:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
