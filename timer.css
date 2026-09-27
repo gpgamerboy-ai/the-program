@@ -1,3 +1,8 @@
+/* ============================================================
+   THE PROGRAM — Timer styles v2
+   Reference: Seconds Pro layout
+   ============================================================ */
+
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
@@ -7,152 +12,373 @@ html, body {
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   background: #0f1115;
-  color: #e8e8e8;
-  transition: background 0.3s;
+  color: #000;
+  transition: background 0.4s;
+  overscroll-behavior: none;
 }
 
 .hidden { display: none !important; }
+
+/* ============================================================
+   START SCREEN
+   ============================================================ */
+
+.start-screen {
+  position: fixed;
+  inset: 0;
+  background: #0f1115;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.start-card {
+  text-align: center;
+  padding: 30px;
+}
+
+.start-card h1 {
+  font-size: 34px;
+  margin: 0 0 12px;
+  color: #ffffff;
+}
+
+.start-sub {
+  font-size: 16px;
+  color: #9aa3b0;
+  margin: 0 0 32px;
+}
+
+.start-btn {
+  padding: 24px 60px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  border-radius: 14px;
+  border: none;
+  background: #2e6cf6;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.start-btn:active {
+  transform: scale(0.98);
+  opacity: 0.9;
+}
+
+/* ============================================================
+   TIMER APP — portrait layout (default)
+   ============================================================ */
 
 .timer-app {
   display: flex;
   flex-direction: column;
   height: 100vh;
   height: 100dvh;
+  background: #d4d4d4;
+  transition: background 0.4s;
 }
 
-.phase-banner {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+/* MASTER SECTION — clock + three stats */
+.master-section {
+  padding: 14px 16px 8px;
   text-align: center;
-  padding: 12px;
-  background: #1a1e26;
-  color: #9aa3b0;
-  transition: background 0.3s, color 0.3s;
+  flex-shrink: 0;
 }
 
-.timer-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  text-align: center;
-}
-
-.time-display {
+.master-clock {
   font-size: 96px;
   font-weight: 800;
   line-height: 1;
-  letter-spacing: -2px;
-  margin-bottom: 24px;
-  color: #ffffff;
+  letter-spacing: -3px;
+  color: #000;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 6px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.stat {
+  flex: 1;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: rgba(0, 0, 0, 0.55);
+  margin-bottom: 2px;
+}
+
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #000;
   font-variant-numeric: tabular-nums;
 }
 
-.interval-name {
+/* SCROLLABLE INTERVAL LIST */
+.interval-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 16px;
+  gap: 10px;
+}
+
+.scroll-padding {
+  flex: 0 0 40px;
+}
+
+.interval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* INTERVAL CARD */
+.interval-card {
+  padding: 20px 18px;
+  border-radius: 20px;
+  background: #2c2c2c;
+  text-align: center;
+  transition: background 0.3s, transform 0.3s, box-shadow 0.3s;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.interval-card .iv-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: rgba(0, 0, 0, 0.55);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.interval-card .iv-name {
   font-size: 32px;
   font-weight: 700;
-  margin-bottom: 12px;
-  color: #e8e8e8;
+  color: #000;
+  margin-bottom: 4px;
+  line-height: 1.15;
 }
 
-.interval-info {
-  font-size: 16px;
-  color: #9aa3b0;
-  margin-bottom: 32px;
+.interval-card .iv-duration {
+  font-size: 24px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.75);
+  font-variant-numeric: tabular-nums;
 }
 
-.progress-bar {
-  width: 100%;
-  max-width: 500px;
-  height: 8px;
-  background: #262a33;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 16px;
+/* CURRENT interval — bigger, highlighted */
+.interval-card.current {
+  padding: 26px 20px;
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
-.progress-fill {
-  height: 100%;
-  width: 0%;
-  background: #2e6cf6;
-  transition: width 0.3s linear;
+.interval-card.current .iv-name {
+  font-size: 40px;
 }
 
-.round-info {
-  font-size: 14px;
-  color: #9aa3b0;
-  text-transform: uppercase;
-  letter-spacing: 1px;
+.interval-card.current .iv-duration {
+  font-size: 28px;
 }
 
-.timer-controls {
-  display: flex;
-  gap: 8px;
+/* NEXT interval — full color, prominent */
+.interval-card.next {
+  padding: 24px 20px;
+}
+
+.interval-card.next .iv-name {
+  font-size: 36px;
+}
+
+/* UPCOMING (not yet next) — dimmer */
+.interval-card.upcoming {
+  opacity: 0.75;
   padding: 16px;
-  background: #181b22;
-  border-top: 1px solid #262a33;
 }
 
-.control-btn {
-  flex: 1;
-  padding: 18px;
+.interval-card.upcoming .iv-name {
+  font-size: 24px;
+}
+
+.interval-card.upcoming .iv-duration {
+  font-size: 18px;
+}
+
+/* PAST intervals — faded */
+.interval-card.past {
+  opacity: 0.4;
+  padding: 14px;
+}
+
+.interval-card.past .iv-name {
+  font-size: 20px;
+}
+
+.interval-card.past .iv-duration {
   font-size: 16px;
-  font-weight: 700;
-  border-radius: 10px;
-  border: 1px solid #2c313c;
-  background: #1a1e26;
-  color: #e8e8e8;
+}
+
+/* ============================================================
+   COLOR SCHEME — applied by JS to body class
+   ============================================================ */
+
+body.phase-work    { background: #b8f52c; }  /* green */
+body.phase-rest    { background: #ff3b30; }  /* red */
+body.phase-prep    { background: #d4d4d4; }  /* grey */
+body.phase-mobility{ background: #ff2cd9; }  /* magenta */
+body.phase-lift    { background: #00e5ff; }  /* cyan */
+body.phase-cooldown{ background: #ff9f1c; }  /* orange */
+body.phase-circuit { background: #00e5ff; }  /* cyan (default circuit) */
+
+/* Individual interval cards carry their own color via inline style */
+
+/* ============================================================
+   CONTROL BAR
+   ============================================================ */
+
+.control-bar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 12px 16px 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.icon-btn {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: #000;
   cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.15s;
 }
 
-.control-btn.primary {
-  background: #2e6cf6;
-  border-color: #2e6cf6;
-  color: #fff;
+.icon-btn:active {
+  background: rgba(0, 0, 0, 0.08);
 }
 
-.control-btn.danger {
-  color: #b3402f;
-  border-color: #b3402f;
+.icon-btn svg {
+  display: block;
 }
 
-.control-btn:active { opacity: 0.7; }
+/* ============================================================
+   LOCK OVERLAY
+   ============================================================ */
 
-/* Color themes applied to body based on phase type */
-body.phase-work    { background: #0a1929; }
-body.phase-work    .phase-banner { background: #1e4f8a; color: #ffffff; }
-body.phase-work    .progress-fill { background: #4a90e2; }
+.lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: calc(30px + env(safe-area-inset-bottom));
+  background: transparent;
+  pointer-events: auto;
+}
 
-body.phase-rest    { background: #2a0a0a; }
-body.phase-rest    .phase-banner { background: #8a1e1e; color: #ffffff; }
-body.phase-rest    .progress-fill { background: #e24a4a; }
+.unlock-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 26px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
 
-body.phase-prep    { background: #1a1a1a; }
-body.phase-prep    .phase-banner { background: #3a3a3a; color: #ffffff; }
-body.phase-prep    .progress-fill { background: #8a8a8a; }
+.unlock-pill:active {
+  background: rgba(0, 0, 0, 0.9);
+}
 
-body.phase-lift    { background: #0a2a0a; }
-body.phase-lift    .phase-banner { background: #1e8a1e; color: #ffffff; }
-body.phase-lift    .progress-fill { background: #4ae24a; }
+/* ============================================================
+   HAMBURGER MENU
+   ============================================================ */
 
-body.phase-mobility { background: #1a0a2a; }
-body.phase-mobility .phase-banner { background: #6a1e8a; color: #ffffff; }
-body.phase-mobility .progress-fill { background: #b04ae2; }
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 20px;
+}
 
-body.phase-cooldown { background: #2a1a0a; }
-body.phase-cooldown .phase-banner { background: #8a5a1e; color: #ffffff; }
-body.phase-cooldown .progress-fill { background: #e29a4a; }
+.menu-card {
+  background: #2c2c2c;
+  border-radius: 20px;
+  overflow: hidden;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+}
 
-/* Modals */
+.menu-item {
+  padding: 22px 24px;
+  border: none;
+  background: transparent;
+  color: #ff453a;
+  font-size: 20px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.menu-item:last-child {
+  border-bottom: none;
+}
+
+.menu-item:active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.menu-item.danger {
+  color: #ff453a;
+}
+
+/* ============================================================
+   INPUT & COMPLETE MODALS
+   ============================================================ */
+
 .input-modal {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.85);
-  z-index: 100;
+  z-index: 400;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -167,11 +393,13 @@ body.phase-cooldown .progress-fill { background: #e29a4a; }
   max-width: 400px;
   width: 100%;
   text-align: center;
+  color: #e8e8e8;
 }
 
 .input-card h2 {
   margin: 0 0 16px;
   font-size: 20px;
+  color: #ffffff;
 }
 
 .input-card p {
@@ -218,73 +446,129 @@ body.phase-cooldown .progress-fill { background: #e29a4a; }
   font-size: 14px;
   max-width: 90%;
   text-align: center;
-  z-index: 200;
+  z-index: 500;
 }
 
+/* ============================================================
+   LANDSCAPE
+   ============================================================ */
 
-/* Start screen */
-.start-screen {
-  position: fixed;
-  inset: 0;
-  background: #0f1115;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
+@media (orientation: landscape) and (max-height: 600px) {
+
+  .timer-app {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .master-section {
+    flex: 0 0 42%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 12px 20px;
+    text-align: center;
+  }
+
+  .master-clock {
+    font-size: 78px;
+    margin-bottom: 4px;
+  }
+
+  .stat-row {
+    gap: 8px;
+  }
+
+  .stat-label {
+    font-size: 10px;
+  }
+
+  .stat-value {
+    font-size: 16px;
+  }
+
+  .interval-scroll {
+    flex: 1;
+    padding: 8px 16px;
+  }
+
+  .scroll-padding {
+    flex: 0 0 20px;
+  }
+
+  .interval-card {
+    padding: 12px 16px;
+  }
+
+  .interval-card.current {
+    padding: 16px;
+  }
+
+  .interval-card.current .iv-name {
+    font-size: 26px;
+  }
+
+  .interval-card.current .iv-duration {
+    font-size: 20px;
+  }
+
+  .interval-card.next {
+    padding: 14px;
+  }
+
+  .interval-card.next .iv-name {
+    font-size: 22px;
+  }
+
+  .interval-card.upcoming .iv-name {
+    font-size: 18px;
+  }
+
+  .control-bar {
+    position: fixed;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    padding: 0;
+    justify-content: space-between;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .control-bar .icon-btn {
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
+    width: 48px;
+    height: 48px;
+  }
+
+  .control-bar .icon-btn:active {
+    background: rgba(0, 0, 0, 0.75);
+  }
 }
 
-.start-card {
-  text-align: center;
-  padding: 30px;
+/* Compact display mode — small timer, secondary to workout */
+.timer-app.compact .master-clock {
+  font-size: 60px;
 }
 
-.start-card h1 {
-  font-size: 32px;
-  margin: 0 0 12px;
-  color: #ffffff;
-}
-
-.start-sub {
+.timer-app.compact .stat-value {
   font-size: 16px;
-  color: #9aa3b0;
-  margin: 0 0 32px;
 }
 
-.start-btn {
-  padding: 24px 60px;
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  border-radius: 14px;
-  border: none;
-  background: #2e6cf6;
-  color: #ffffff;
-  cursor: pointer;
+/* Minimal display mode — tiny, just a rest timer */
+.timer-app.minimal .master-section {
+  padding: 8px;
 }
 
-.start-btn:active {
-  transform: scale(0.98);
-  opacity: 0.9;
+.timer-app.minimal .master-clock {
+  font-size: 40px;
 }
 
-/* Next-up preview */
-.next-up {
-  font-size: 18px;
-  font-weight: 600;
-  color: #9aa3b0;
-  margin-bottom: 20px;
-  padding: 6px 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  letter-spacing: 0.5px;
-}
-
-.next-up strong {
-  color: #e8e8e8;
-  font-weight: 700;
-}
-
-.next-up.hidden {
+.timer-app.minimal .stat-row {
   display: none;
 }
 
+.timer-app.minimal .interval-scroll {
+  display: none;
+}
