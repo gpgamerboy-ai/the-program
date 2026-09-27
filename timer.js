@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — v4 with corrected endpoint
+// TIMER PLAYER — v5 (structure parser fix)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -144,6 +144,19 @@ async function fetchTimer() {
   }
 }
 
+// ============================================================
+// STRUCTURE PARSER — handles string OR already-parsed array
+// ============================================================
+
+function parseStructure(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try { return JSON.parse(raw || "[]"); }
+    catch (e) { return []; }
+  }
+  return [];
+}
+
 function expandStructure(raw) {
   const flat = [];
   (raw || []).forEach(function (iv) {
@@ -176,11 +189,10 @@ function handleStart() {
 
   const t = state.timer;
 
-  let rawStructure = [];
-  try { rawStructure = JSON.parse(t.structure || "[]"); } catch (e) { rawStructure = []; }
+  const rawStructure = parseStructure(t.structure);
   state.structure = expandStructure(rawStructure);
 
-  try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); } catch (e) { state.inputPrompts = []; }
+  state.inputPrompts = parseStructure(t.inputPrompts);
 
   if (!state.structure.length) {
     showError("Timer has no intervals defined");
@@ -572,10 +584,11 @@ function speak(text) {
 
 function shouldCue(name) {
   if (!state.timer || !state.timer.ttsCues) return true;
-  try {
-    const cues = JSON.parse(state.timer.ttsCues);
+  const cues = parseStructure(state.timer.ttsCues);
+  if (typeof cues === "object" && !Array.isArray(cues)) {
     return cues[name] !== false;
-  } catch (e) { return true; }
+  }
+  return true;
 }
 
 function escapeHtml(s) {
