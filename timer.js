@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER
+// TIMER PLAYER — with start button
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
@@ -20,13 +20,18 @@ const state = {
   inputPrompts: [],
   collectedInputs: [],
   pendingInput: null,
-  phaseStartTime: null,
-  completedRounds: 0
+  completedRounds: 0,
+  hasStarted: false
 };
 
 const $ = function (id) { return document.getElementById(id); };
 
 const dom = {
+  startScreen: $("startScreen"),
+  startTitle: $("startTitle"),
+  startSubtitle: $("startSubtitle"),
+  startBtn: $("startBtn"),
+  timerApp: $("timerApp"),
   phaseBanner: $("phaseBanner"),
   timeDisplay: $("timeDisplay"),
   intervalName: $("intervalName"),
@@ -52,6 +57,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 function wireEvents() {
+  dom.startBtn.addEventListener("click", handleStart);
   dom.pauseBtn.addEventListener("click", togglePause);
   dom.skipBtn.addEventListener("click", skipInterval);
   dom.stopBtn.addEventListener("click", confirmStop);
@@ -94,13 +100,25 @@ async function fetchTimer() {
       return;
     }
     state.timer = data.timer;
-    prepareTimer();
+    prepareStartScreen();
   } catch (e) {
     showError("Network error loading timer");
   }
 }
 
-function prepareTimer() {
+function prepareStartScreen() {
+  // Show the timer name on the start card
+  dom.startTitle.textContent = state.timer.timerName || "Timer";
+  dom.startSubtitle.textContent = "Tap START to begin";
+  // Start screen is visible by default. Timer app is hidden.
+}
+
+function handleStart() {
+  // User gesture just happened. Now we can speak.
+  state.hasStarted = true;
+  dom.startScreen.classList.add("hidden");
+  dom.timerApp.classList.remove("hidden");
+
   const t = state.timer;
 
   try { state.structure = JSON.parse(t.structure || "[]"); }
@@ -119,7 +137,7 @@ function prepareTimer() {
   state.round = 1;
   state.completedRounds = 0;
 
-  speakTitle(t.ttsTitle || t.timerName || "Starting timer");
+  speak(t.ttsTitle || t.timerName || "Starting timer");
 
   setTimeout(function () { beginInterval(0); }, 3000);
 }
@@ -133,7 +151,6 @@ function beginInterval(index) {
   const iv = state.structure[index];
   state.phaseIndex = index;
   state.timeLeft = parseInt(iv.duration, 10) || 0;
-  state.phaseStartTime = Date.now();
   state.isRunning = true;
 
   updatePhaseUI(iv);
@@ -329,8 +346,6 @@ function speak(text) {
     window.speechSynthesis.speak(utterance);
   } catch (e) {}
 }
-
-function speakTitle(text) { speak(text); }
 
 function shouldCue(name) {
   if (!state.timer || !state.timer.ttsCues) return true;
