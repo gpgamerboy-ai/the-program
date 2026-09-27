@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#0f1115" />
   <title>Timer</title>
-  <link rel="stylesheet" href="timer.css" />
+  <link rel="stylesheet" href="timer.css?v=7" />
 </head>
 <body>
 
+  <!-- START SCREEN -->
   <div id="startScreen" class="start-screen">
     <div class="start-card">
       <h1 id="startTitle">Timer</h1>
@@ -17,25 +18,101 @@
     </div>
   </div>
 
+  <!-- TIMER SCREEN -->
   <div id="timerApp" class="timer-app hidden">
-    <div id="phaseBanner" class="phase-banner">Ready</div>
-    <div class="timer-body">
-      <div id="timeDisplay" class="time-display">00:00</div>
-      <div id="intervalName" class="interval-name">Get Ready</div>
-      <div id="intervalInfo" class="interval-info"></div>
-      <div id="nextUp" class="next-up hidden">Next: —</div>
-      <div id="progressBar" class="progress-bar">
-        <div id="progressFill" class="progress-fill"></div>
+
+    <!-- MASTER CLOCK SECTION -->
+    <div class="master-section">
+      <div id="masterClock" class="master-clock">00:00</div>
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-label">ELAPSED</div>
+          <div id="statElapsed" class="stat-value">0:00</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">INTERVAL</div>
+          <div id="statInterval" class="stat-value">0/0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">REMAINING</div>
+          <div id="statRemaining" class="stat-value">0:00</div>
+        </div>
       </div>
-      <div id="roundInfo" class="round-info"></div>
     </div>
-    <div class="timer-controls">
-      <button id="pauseBtn" class="control-btn primary">Pause</button>
-      <button id="skipBtn" class="control-btn">Skip</button>
-      <button id="stopBtn" class="control-btn danger">Stop</button>
+
+    <!-- SCROLLABLE INTERVAL LIST -->
+    <div id="intervalScroll" class="interval-scroll">
+      <div class="scroll-padding"></div>
+      <div id="intervalList" class="interval-list"></div>
+      <div class="scroll-padding"></div>
+    </div>
+
+    <!-- CONTROL BAR -->
+    <div class="control-bar">
+      <button id="hamburgerBtn" class="icon-btn" aria-label="Menu">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="4" y1="7" x2="20" y2="7"/>
+          <line x1="4" y1="12" x2="20" y2="12"/>
+          <line x1="4" y1="17" x2="20" y2="17"/>
+        </svg>
+      </button>
+      <button id="pauseBtn" class="icon-btn" aria-label="Pause">
+        <svg id="pauseIcon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+          <rect x="6" y="4" width="4" height="16"/>
+          <rect x="14" y="4" width="4" height="16"/>
+        </svg>
+        <svg id="playIcon" class="hidden" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="6,4 20,12 6,20"/>
+        </svg>
+      </button>
+      <button id="lockBtn" class="icon-btn" aria-label="Lock">
+        <svg id="lockOpenIcon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+        </svg>
+        <svg id="lockClosedIcon" class="hidden" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+      </button>
+      <button id="restartBtn" class="icon-btn" aria-label="Restart">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 3-6.7"/>
+          <polyline points="3 4 3 10 9 10"/>
+        </svg>
+      </button>
+      <button id="exitBtn" class="icon-btn" aria-label="Exit">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="6" y1="6" x2="18" y2="18"/>
+          <line x1="18" y1="6" x2="6" y2="18"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- LOCK OVERLAY -->
+    <div id="lockOverlay" class="lock-overlay hidden">
+      <button id="unlockBtn" class="unlock-pill">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        Hold to unlock
+      </button>
+    </div>
+
+  </div>
+
+  <!-- HAMBURGER MENU -->
+  <div id="hamburgerMenu" class="menu-overlay hidden">
+    <div class="menu-card">
+      <button id="menuExit" class="menu-item danger">Exit Timer</button>
+      <button id="menuReset" class="menu-item">Reset</button>
+      <button id="menuLock" class="menu-item">Lock Interface</button>
+      <button id="menuBack" class="menu-item">Back to Timer</button>
     </div>
   </div>
 
+  <!-- INPUT MODAL -->
   <div id="inputModal" class="input-modal hidden">
     <div class="input-card">
       <h2 id="inputPrompt">Enter value</h2>
@@ -44,6 +121,7 @@
     </div>
   </div>
 
+  <!-- COMPLETE MODAL -->
   <div id="completeModal" class="input-modal hidden">
     <div class="input-card">
       <h2>Timer Complete</h2>
@@ -54,397 +132,7 @@
 
   <div id="errorMsg" class="error-msg hidden"></div>
 
-  <script>
-  // ============================================================
-  // TIMER PLAYER — inlined
-  // ============================================================
-
-  var ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
-
-  var state = {
-    timerId: null,
-    timer: null,
-    token: null,
-    athlete: null,
-    phaseIndex: 0,
-    round: 1,
-    totalRounds: 1,
-    timeLeft: 0,
-    isPaused: false,
-    isRunning: false,
-    structure: [],
-    intervalHandle: null,
-    inputPrompts: [],
-    collectedInputs: [],
-    pendingInput: null,
-    completedRounds: 0,
-    hasStarted: false
-  };
-
-  var $ = function (id) { return document.getElementById(id); };
-
-  var dom = {
-    startScreen: $("startScreen"),
-    startTitle: $("startTitle"),
-    startSubtitle: $("startSubtitle"),
-    startBtn: $("startBtn"),
-    timerApp: $("timerApp"),
-    phaseBanner: $("phaseBanner"),
-    timeDisplay: $("timeDisplay"),
-    intervalName: $("intervalName"),
-    intervalInfo: $("intervalInfo"),
-    nextUp: $("nextUp"),
-    progressFill: $("progressFill"),
-    roundInfo: $("roundInfo"),
-    pauseBtn: $("pauseBtn"),
-    skipBtn: $("skipBtn"),
-    stopBtn: $("stopBtn"),
-    inputModal: $("inputModal"),
-    inputPrompt: $("inputPrompt"),
-    inputField: $("inputField"),
-    inputSubmit: $("inputSubmit"),
-    completeModal: $("completeModal"),
-    completeSummary: $("completeSummary"),
-    completeDone: $("completeDone"),
-    errorMsg: $("errorMsg")
-  };
-
-  document.addEventListener("DOMContentLoaded", function () {
-    wireEvents();
-    loadTimerFromURL();
-  });
-
-  function wireEvents() {
-    dom.startBtn.addEventListener("click", handleStart);
-    dom.pauseBtn.addEventListener("click", togglePause);
-    dom.skipBtn.addEventListener("click", skipInterval);
-    dom.stopBtn.addEventListener("click", confirmStop);
-    dom.inputSubmit.addEventListener("click", submitInput);
-    dom.completeDone.addEventListener("click", function () {
-      dom.completeModal.classList.add("hidden");
-      if (window.history.length > 1) window.history.back();
-    });
-  }
-
-  function loadTimerFromURL() {
-    var params = new URLSearchParams(window.location.search);
-    state.timerId = params.get("id");
-    state.token = params.get("token") || localStorage.getItem("sessionToken");
-    state.athlete = params.get("athlete") || localStorage.getItem("lastAthlete");
-
-    if (!state.timerId) { showError("No timer ID provided. Use ?id=T001"); return; }
-    if (!state.token) { showError("No session token. Log in to the athlete app first."); return; }
-    fetchTimer();
-  }
-
-  async function fetchTimer() {
-    try {
-      var params = new URLSearchParams();
-      params.append("action", "getTimer");
-      params.append("token", state.token);
-      params.append("timerId", state.timerId);
-
-      var res = await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" });
-      var data = await res.json();
-
-      if (!data || !data.ok) {
-        showError((data && data.error) || "Could not load timer");
-        return;
-      }
-      state.timer = data.timer;
-      dom.startTitle.textContent = state.timer.timerName || "Timer";
-      dom.startSubtitle.textContent = "Tap START to begin";
-    } catch (e) {
-      showError("Network error loading timer");
-    }
-  }
-
-  function expandStructure(raw) {
-    var flat = [];
-    (raw || []).forEach(function (iv) {
-      if (iv.type === "circuit") {
-        var rounds = parseInt(iv.rounds, 10) || 1;
-        var inner = iv.intervals || [];
-        for (var r = 1; r <= rounds; r++) {
-          inner.forEach(function (innerIv) {
-            var copy = Object.assign({}, innerIv);
-            copy.roundNumber = r;
-            copy.totalRoundCount = rounds;
-            flat.push(copy);
-          });
-          if (iv.afterEach && r < rounds) {
-            flat.push(Object.assign({}, iv.afterEach));
-          }
-        }
-        if (iv.afterCircuit) flat.push(Object.assign({}, iv.afterCircuit));
-      } else {
-        flat.push(Object.assign({}, iv));
-      }
-    });
-    return flat;
-  }
-
-  function handleStart() {
-    state.hasStarted = true;
-    dom.startScreen.classList.add("hidden");
-    dom.timerApp.classList.remove("hidden");
-
-    var t = state.timer;
-
-    var rawStructure = [];
-    try { rawStructure = JSON.parse(t.structure || "[]"); } catch (e) { rawStructure = []; }
-
-    state.structure = expandStructure(rawStructure);
-
-    try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); } catch (e) { state.inputPrompts = []; }
-
-    if (!state.structure.length) {
-      showError("Timer has no intervals defined");
-      return;
-    }
-
-    var workIntervals = state.structure.filter(function (iv) { return iv.type === "work"; });
-    state.totalRounds = workIntervals.length || 1;
-
-    state.phaseIndex = 0;
-    state.round = 1;
-    state.completedRounds = 0;
-
-    speak(t.ttsTitle || t.timerName || "Starting timer");
-
-    setTimeout(function () { beginInterval(0); }, 3000);
-  }
-
-  function beginInterval(index) {
-    if (index >= state.structure.length) { completeTimer(); return; }
-
-    var iv = state.structure[index];
-    state.phaseIndex = index;
-    state.timeLeft = parseInt(iv.duration, 10) || 0;
-    state.isRunning = true;
-
-    updatePhaseUI(iv);
-    updateTimerDisplay();
-    updateNextUp();
-
-    speak(iv.name || iv.type);
-
-    var nextIv = state.structure[index + 1];
-    if (nextIv && shouldCue("nextUp")) {
-      setTimeout(function () {
-        speak("Next: " + (nextIv.name || nextIv.type));
-      }, 1500);
-    }
-
-    if (iv.type === "work") state.round = state.completedRounds + 1;
-
-    startTicking();
-  }
-
-  function startTicking() {
-    if (state.intervalHandle) clearInterval(state.intervalHandle);
-
-    state.intervalHandle = setInterval(function () {
-      if (state.isPaused) return;
-
-      state.timeLeft--;
-
-      var iv = state.structure[state.phaseIndex];
-      var halfwayThreshold = Math.floor((parseInt(iv.duration, 10) || 0) / 2);
-      if (state.timeLeft === halfwayThreshold && shouldCue("halfway")) {
-        speak("Halfway");
-      }
-
-      if (state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) {
-        speak(String(state.timeLeft));
-      }
-
-      if (state.timeLeft <= 0) {
-        clearInterval(state.intervalHandle);
-        state.isRunning = false;
-        endInterval();
-        return;
-      }
-      updateTimerDisplay();
-    }, 1000);
-  }
-
-  function endInterval() {
-    var iv = state.structure[state.phaseIndex];
-    if (iv.type === "work") state.completedRounds++;
-
-    var prompt = state.inputPrompts.find(function (p) {
-      return p.atEnd && (p.afterInterval === state.phaseIndex + 1 || p.afterType === iv.type);
-    });
-
-    if (prompt) {
-      state.pendingInput = prompt;
-      showInputPrompt(prompt);
-      return;
-    }
-    nextInterval();
-  }
-
-  function nextInterval() {
-    var next = state.phaseIndex + 1;
-    if (next >= state.structure.length) { completeTimer(); }
-    else { beginInterval(next); }
-  }
-
-  function updatePhaseUI(iv) {
-    document.body.className = "phase-" + (iv.type || "work");
-    var typeLabel = (iv.type || "work").toUpperCase();
-    dom.phaseBanner.textContent = typeLabel;
-    dom.intervalName.textContent = iv.name || iv.type || "";
-
-    if (iv.type === "work") {
-      var roundInfo = iv.roundNumber
-        ? "Round " + iv.roundNumber + " of " + iv.totalRoundCount
-        : "Round " + (state.completedRounds + 1) + " of " + state.totalRounds;
-      dom.roundInfo.textContent = roundInfo;
-    } else {
-      dom.roundInfo.textContent = "";
-    }
-  }
-
-  function updateNextUp() {
-    var nextIdx = state.phaseIndex + 1;
-    var next = state.structure[nextIdx];
-
-    if (!next) {
-      dom.nextUp.classList.add("hidden");
-      return;
-    }
-
-    var nextName = next.name || next.type || "Next";
-    dom.nextUp.classList.remove("hidden");
-    dom.nextUp.innerHTML = "Next: <strong>" + escapeHtml(nextName) + "</strong>";
-  }
-
-  function updateTimerDisplay() {
-    var mins = Math.floor(Math.max(0, state.timeLeft) / 60);
-    var secs = Math.max(0, state.timeLeft) % 60;
-    dom.timeDisplay.textContent =
-      String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
-
-    var iv = state.structure[state.phaseIndex];
-    if (iv && iv.duration > 0) {
-      var elapsed = iv.duration - state.timeLeft;
-      var pct = Math.min(100, (elapsed / iv.duration) * 100);
-      dom.progressFill.style.width = pct + "%";
-    }
-  }
-
-  function togglePause() {
-    state.isPaused = !state.isPaused;
-    dom.pauseBtn.textContent = state.isPaused ? "Resume" : "Pause";
-    speak(state.isPaused ? "Paused" : "Resume");
-  }
-
-  function skipInterval() {
-    if (state.intervalHandle) clearInterval(state.intervalHandle);
-    state.isRunning = false;
-    endInterval();
-  }
-
-  function confirmStop() {
-    if (confirm("Stop the timer? Progress will be lost.")) {
-      if (state.intervalHandle) clearInterval(state.intervalHandle);
-      state.isPaused = false;
-      state.isRunning = false;
-      if (window.history.length > 1) window.history.back();
-    }
-  }
-
-  function showInputPrompt(prompt) {
-    state.pendingInput = prompt;
-    dom.inputPrompt.textContent = prompt.prompt || "Enter value";
-    dom.inputField.value = "";
-    dom.inputModal.classList.remove("hidden");
-    dom.inputField.focus();
-  }
-
-  function submitInput() {
-    var value = dom.inputField.value.trim();
-    if (value === "") return;
-
-    state.collectedInputs.push({
-      prompt: state.pendingInput.prompt,
-      value: value,
-      intervalIndex: state.phaseIndex
-    });
-
-    dom.inputModal.classList.add("hidden");
-    state.pendingInput = null;
-    nextInterval();
-  }
-
-  async function completeTimer() {
-    if (state.intervalHandle) clearInterval(state.intervalHandle);
-    state.isRunning = false;
-
-    var summary = "Completed " + state.completedRounds + " round" + (state.completedRounds === 1 ? "" : "s");
-    dom.completeSummary.textContent = summary;
-    dom.completeModal.classList.remove("hidden");
-
-    speak("Timer complete");
-    await logTimerCompletion();
-  }
-
-  async function logTimerCompletion() {
-    var inputData = state.collectedInputs.length ? JSON.stringify(state.collectedInputs) : "";
-    var firstInput = state.collectedInputs.length ? state.collectedInputs[0].value : "";
-
-    var params = new URLSearchParams();
-    params.append("action", "logSet");
-    params.append("token", state.token);
-    params.append("plan", state.timer.timerType || "timer");
-    params.append("exercise", "Timer: " + (state.timer.timerName || state.timerId));
-    params.append("set", "1");
-    params.append("target", String(state.timer.totalDuration || 0));
-    params.append("reps", String(firstInput));
-    params.append("duration", String(state.timer.totalDuration || 0));
-    params.append("roundsCompleted", String(state.completedRounds));
-    params.append("inputData", inputData);
-    params.append("notes", "");
-
-    try { await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" }); } catch (e) {}
-  }
-
-  function speak(text) {
-    if (!text) return;
-    if (!("speechSynthesis" in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      var utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.1;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {}
-  }
-
-  function shouldCue(name) {
-    if (!state.timer || !state.timer.ttsCues) return true;
-    try {
-      var cues = JSON.parse(state.timer.ttsCues);
-      return cues[name] !== false;
-    } catch (e) { return true; }
-  }
-
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function showError(msg) {
-    dom.errorMsg.textContent = msg;
-    dom.errorMsg.classList.remove("hidden");
-    setTimeout(function () { dom.errorMsg.classList.add("hidden"); }, 6000);
-  }
-  </script>
-
+  <script src="timer.js?v=7"></script>
 </body>
 </html>
+
