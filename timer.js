@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — with circuit engine
+// TIMER PLAYER — v2 with Seconds Pro layout
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
@@ -10,18 +10,21 @@ const state = {
   token: null,
   athlete: null,
   phaseIndex: 0,
-  round: 1,
   totalRounds: 1,
   timeLeft: 0,
   isPaused: false,
   isRunning: false,
+  isLocked: false,
   structure: [],
   intervalHandle: null,
   inputPrompts: [],
   collectedInputs: [],
   pendingInput: null,
   completedRounds: 0,
-  hasStarted: false
+  hasStarted: false,
+  startTime: null,
+  totalDuration: 0,
+  scrollLocked: false
 };
 
 const $ = function (id) { return document.getElementById(id); };
@@ -32,15 +35,28 @@ const dom = {
   startSubtitle: $("startSubtitle"),
   startBtn: $("startBtn"),
   timerApp: $("timerApp"),
-  phaseBanner: $("phaseBanner"),
-  timeDisplay: $("timeDisplay"),
-  intervalName: $("intervalName"),
-  intervalInfo: $("intervalInfo"),
-  progressFill: $("progressFill"),
-  roundInfo: $("roundInfo"),
+  masterClock: $("masterClock"),
+  statElapsed: $("statElapsed"),
+  statInterval: $("statInterval"),
+  statRemaining: $("statRemaining"),
+  intervalScroll: $("intervalScroll"),
+  intervalList: $("intervalList"),
+  hamburgerBtn: $("hamburgerBtn"),
   pauseBtn: $("pauseBtn"),
-  skipBtn: $("skipBtn"),
-  stopBtn: $("stopBtn"),
+  pauseIcon: $("pauseIcon"),
+  playIcon: $("playIcon"),
+  lockBtn: $("lockBtn"),
+  lockOpenIcon: $("lockOpenIcon"),
+  lockClosedIcon: $("lockClosedIcon"),
+  restartBtn: $("restartBtn"),
+  exitBtn: $("exitBtn"),
+  lockOverlay: $("lockOverlay"),
+  unlockBtn: $("unlockBtn"),
+  hamburgerMenu: $("hamburgerMenu"),
+  menuExit: $("menuExit"),
+  menuReset: $("menuReset"),
+  menuLock: $("menuLock"),
+  menuBack: $("menuBack"),
   inputModal: $("inputModal"),
   inputPrompt: $("inputPrompt"),
   inputField: $("inputField"),
@@ -51,6 +67,10 @@ const dom = {
   errorMsg: $("errorMsg")
 };
 
+// ============================================================
+// STARTUP
+// ============================================================
+
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
   loadTimerFromURL();
@@ -59,8 +79,18 @@ document.addEventListener("DOMContentLoaded", function () {
 function wireEvents() {
   dom.startBtn.addEventListener("click", handleStart);
   dom.pauseBtn.addEventListener("click", togglePause);
-  dom.skipBtn.addEventListener("click", skipInterval);
-  dom.stopBtn.addEventListener("click", confirmStop);
+  dom.hamburgerBtn.addEventListener("click", openMenu);
+  dom.lockBtn.addEventListener("click", toggleLock);
+  dom.restartBtn.addEventListener("click", confirmRestart);
+  dom.exitBtn.addEventListener("click", confirmExit);
+  dom.unlockBtn.addEventListener("click", beginUnlockHold);
+  dom.unlockBtn.addEventListener("touchend", cancelUnlockHold);
+  dom.unlockBtn.addEventListener("mouseup", cancelUnlockHold);
+  dom.unlockBtn.addEventListener("mouseleave", cancelUnlockHold);
+  dom.menuExit.addEventListener("click", confirmExit);
+  dom.menuReset.addEventListener("click", confirmRestart);
+  dom.menuLock.addEventListener("click", lockFromMenu);
+  dom.menuBack.addEventListener("click", closeMenu);
   dom.inputSubmit.addEventListener("click", submitInput);
   dom.completeDone.addEventListener("click", function () {
     dom.completeModal.classList.add("hidden");
@@ -68,20 +98,18 @@ function wireEvents() {
   });
 }
 
+// ============================================================
+// LOAD TIMER
+// ============================================================
+
 function loadTimerFromURL() {
   const params = new URLSearchParams(window.location.search);
   state.timerId = params.get("id");
   state.token = params.get("token") || localStorage.getItem("sessionToken");
   state.athlete = params.get("athlete") || localStorage.getItem("lastAthlete");
 
-  if (!state.timerId) {
-    showError("No timer ID provided. Use ?id=T001");
-    return;
-  }
-  if (!state.token) {
-    showError("No session token. Log in to the athlete app first.");
-    return;
-  }
+  if (!state.timerId) { showError("No timer ID provided. Use ?id=T001"); return; }
+  if (!state.token) { showError("No session token. Log in to the athlete app first."); return; }
   fetchTimer();
 }
 
@@ -91,10 +119,8 @@ async function fetchTimer() {
     params.append("action", "getTimer");
     params.append("token", state.token);
     params.append("timerId", state.timerId);
-
     const res = await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" });
     const data = await res.json();
-
     if (!data || !data.ok) {
       showError((data && data.error) || "Could not load timer");
       return;
@@ -108,91 +134,90 @@ async function fetchTimer() {
 }
 
 // ============================================================
-// CIRCUIT ENGINE — expands nested circuits into flat sequence
+// CIRCUIT ENGINE
 // ============================================================
 
 function expandStructure(raw) {
   const flat = [];
-
-  function walk(items, roundContext) {
-    items.forEach(function (iv) {
-      if (iv.type === "circuit") {
-        const rounds = parseInt(iv.rounds, 10) || 1;
-        const inner = iv.intervals || [];
-        for (let r = 1; r <= rounds; r++) {
-          inner.forEach(function (innerIv) {
-            const copy = Object.assign({}, innerIv);
-            copy.roundNumber = r;
-            copy.totalRoundCount = rounds;
-            copy.roundLabel = iv.name || "Round";
-            flat.push(copy);
-          });
-          if (iv.afterEach && r < rounds) {
-            flat.push(Object.assign({}, iv.afterEach));
-          } else if (iv.afterEach && r === rounds && iv.afterLast) {
-            flat.push(Object.assign({}, iv.afterEach));
-          }
-        }
-        if (iv.afterCircuit) {
-          flat.push(Object.assign({}, iv.afterCircuit));
-        }
-      } else {
-        flat.push(Object.assign({}, iv));
+  (raw || []).forEach(function (iv) {
+    if (iv.type === "circuit") {
+      const rounds = parseInt(iv.rounds, 10) || 1;
+      const inner = iv.intervals || [];
+      for (let r = 1; r <= rounds; r++) {
+        inner.forEach(function (innerIv) {
+          const copy = Object.assign({}, innerIv);
+          copy.roundNumber = r;
+          copy.totalRoundCount = rounds;
+          flat.push(copy);
+        });
+        if (iv.afterEach && r < rounds) flat.push(Object.assign({}, iv.afterEach));
       }
-    });
-  }
-
-  walk(raw || [], null);
+      if (iv.afterCircuit) flat.push(Object.assign({}, iv.afterCircuit));
+    } else {
+      flat.push(Object.assign({}, iv));
+    }
+  });
   return flat;
 }
 
+// ============================================================
+// START TIMER
+// ============================================================
+
 function handleStart() {
   state.hasStarted = true;
+  state.startTime = Date.now();
+
   dom.startScreen.classList.add("hidden");
   dom.timerApp.classList.remove("hidden");
 
   const t = state.timer;
 
   let rawStructure = [];
-  try { rawStructure = JSON.parse(t.structure || "[]"); }
-  catch (e) { rawStructure = []; }
-
+  try { rawStructure = JSON.parse(t.structure || "[]"); } catch (e) { rawStructure = []; }
   state.structure = expandStructure(rawStructure);
 
-  try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); }
-  catch (e) { state.inputPrompts = []; }
+  try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); } catch (e) { state.inputPrompts = []; }
 
   if (!state.structure.length) {
     showError("Timer has no intervals defined");
     return;
   }
 
-  // Total rounds = unique roundLabel values count * circuits
+  state.totalDuration = state.structure.reduce(function (sum, iv) {
+    return sum + (parseInt(iv.duration, 10) || 0);
+  }, 0);
+
   const workIntervals = state.structure.filter(function (iv) { return iv.type === "work"; });
   state.totalRounds = workIntervals.length || 1;
 
   state.phaseIndex = 0;
-  state.round = 1;
   state.completedRounds = 0;
+
+  renderIntervalList();
 
   speak(t.ttsTitle || t.timerName || "Starting timer");
 
   setTimeout(function () { beginInterval(0); }, 3000);
 }
 
+// ============================================================
+// INTERVAL CONTROL
+// ============================================================
+
 function beginInterval(index) {
-  if (index >= state.structure.length) {
-    completeTimer();
-    return;
-  }
+  if (index >= state.structure.length) { completeTimer(); return; }
 
   const iv = state.structure[index];
   state.phaseIndex = index;
   state.timeLeft = parseInt(iv.duration, 10) || 0;
   state.isRunning = true;
 
-  updatePhaseUI(iv);
-  updateTimerDisplay();
+  document.body.className = "phase-" + (iv.type || "work");
+  updateMasterClock();
+  updateStats();
+  updateIntervalList();
+  scrollToCurrent();
 
   speak(iv.name || iv.type);
 
@@ -203,9 +228,7 @@ function beginInterval(index) {
     }, 1500);
   }
 
-  if (iv.type === "work") {
-    state.round = state.completedRounds + 1;
-  }
+  if (iv.type === "work") state.completedRounds++;
 
   startTicking();
 }
@@ -220,13 +243,8 @@ function startTicking() {
 
     const iv = state.structure[state.phaseIndex];
     const halfwayThreshold = Math.floor((parseInt(iv.duration, 10) || 0) / 2);
-    if (state.timeLeft === halfwayThreshold && shouldCue("halfway")) {
-      speak("Halfway");
-    }
-
-    if (state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) {
-      speak(String(state.timeLeft));
-    }
+    if (state.timeLeft === halfwayThreshold && shouldCue("halfway")) speak("Halfway");
+    if (state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) speak(String(state.timeLeft));
 
     if (state.timeLeft <= 0) {
       clearInterval(state.intervalHandle);
@@ -234,16 +252,14 @@ function startTicking() {
       endInterval();
       return;
     }
-    updateTimerDisplay();
+
+    updateMasterClock();
+    updateStats();
   }, 1000);
 }
 
 function endInterval() {
   const iv = state.structure[state.phaseIndex];
-
-  if (iv.type === "work") {
-    state.completedRounds++;
-  }
 
   const prompt = state.inputPrompts.find(function (p) {
     return p.atEnd && (p.afterInterval === state.phaseIndex + 1 || p.afterType === iv.type);
@@ -259,63 +275,203 @@ function endInterval() {
 
 function nextInterval() {
   const next = state.phaseIndex + 1;
-  if (next >= state.structure.length) {
-    completeTimer();
-  } else {
-    beginInterval(next);
-  }
+  if (next >= state.structure.length) { completeTimer(); }
+  else { beginInterval(next); }
 }
 
-function updatePhaseUI(iv) {
-  document.body.className = "phase-" + (iv.type || "work");
-  const typeLabel = (iv.type || "work").toUpperCase();
-  dom.phaseBanner.textContent = typeLabel;
-  dom.intervalName.textContent = iv.name || iv.type || "";
+// ============================================================
+// RENDERING
+// ============================================================
 
-  if (iv.type === "work") {
-    const roundInfo = iv.roundNumber
-      ? "Round " + iv.roundNumber + " of " + iv.totalRoundCount
-      : "Round " + (state.completedRounds + 1) + " of " + state.totalRounds;
-    dom.roundInfo.textContent = roundInfo;
-  } else {
-    dom.roundInfo.textContent = "";
-  }
+function renderIntervalList() {
+  dom.intervalList.innerHTML = "";
+
+  state.structure.forEach(function (iv, i) {
+    const card = document.createElement("div");
+    card.className = "interval-card";
+    card.dataset.index = i;
+    card.dataset.type = iv.type || "work";
+
+    const color = iv.color || colorForType(iv.type);
+    card.style.background = color;
+
+    const label = getLabelForPosition(i);
+    const name = iv.name || iv.type || "";
+    const dur = formatDuration(parseInt(iv.duration, 10) || 0);
+
+    card.innerHTML =
+      '<div class="iv-label">' + escapeHtml(label) + '</div>' +
+      '<div class="iv-name">' + escapeHtml(name) + '</div>' +
+      '<div class="iv-duration">' + dur + '</div>';
+
+    dom.intervalList.appendChild(card);
+  });
 }
 
-function updateTimerDisplay() {
-  const mins = Math.floor(Math.max(0, state.timeLeft) / 60);
-  const secs = Math.max(0, state.timeLeft) % 60;
-  dom.timeDisplay.textContent =
-    String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+function updateIntervalList() {
+  const cards = dom.intervalList.querySelectorAll(".interval-card");
+  cards.forEach(function (card, i) {
+    card.classList.remove("current", "next", "upcoming", "past");
 
-  const iv = state.structure[state.phaseIndex];
-  if (iv && iv.duration > 0) {
-    const elapsed = iv.duration - state.timeLeft;
-    const pct = Math.min(100, (elapsed / iv.duration) * 100);
-    dom.progressFill.style.width = pct + "%";
-  }
+    if (i < state.phaseIndex) card.classList.add("past");
+    else if (i === state.phaseIndex) card.classList.add("current");
+    else if (i === state.phaseIndex + 1) card.classList.add("next");
+    else card.classList.add("upcoming");
+  });
 }
+
+function scrollToCurrent() {
+  if (state.scrollLocked || state.isLocked) return;
+  const currentCard = dom.intervalList.querySelector(".interval-card.current");
+  if (!currentCard) return;
+
+  const scrollBox = dom.intervalScroll;
+  const cardTop = currentCard.offsetTop;
+  const cardHeight = currentCard.offsetHeight;
+  const boxHeight = scrollBox.clientHeight;
+
+  const targetScroll = cardTop - (boxHeight / 2) + (cardHeight / 2);
+
+  scrollBox.scrollTo({ top: targetScroll, behavior: "smooth" });
+}
+
+function getLabelForPosition(i) {
+  if (i < state.phaseIndex) return "PAST";
+  if (i === state.phaseIndex) return "CURRENT INTERVAL";
+  if (i === state.phaseIndex + 1) return "UP NEXT";
+  return "UPCOMING";
+}
+
+// ============================================================
+// MASTER CLOCK + STATS
+// ============================================================
+
+function updateMasterClock() {
+  dom.masterClock.textContent = formatDuration(state.timeLeft);
+}
+
+function updateStats() {
+  const elapsed = state.startTime
+    ? Math.floor((Date.now() - state.startTime) / 1000)
+    : 0;
+
+  const totalIntervals = state.structure.length;
+  const currentIntervalNum = state.phaseIndex + 1;
+
+  const remainingTotal =
+    state.timeLeft +
+    state.structure.slice(state.phaseIndex + 1).reduce(function (sum, iv) {
+      return sum + (parseInt(iv.duration, 10) || 0);
+    }, 0);
+
+  dom.statElapsed.textContent = formatDuration(elapsed);
+  dom.statInterval.textContent = currentIntervalNum + "/" + totalIntervals;
+  dom.statRemaining.textContent = formatDuration(remainingTotal);
+}
+
+// ============================================================
+// CONTROLS
+// ============================================================
 
 function togglePause() {
   state.isPaused = !state.isPaused;
-  dom.pauseBtn.textContent = state.isPaused ? "Resume" : "Pause";
-  speak(state.isPaused ? "Paused" : "Resume");
+  if (state.isPaused) {
+    dom.pauseIcon.classList.add("hidden");
+    dom.playIcon.classList.remove("hidden");
+    speak("Paused");
+  } else {
+    dom.pauseIcon.classList.remove("hidden");
+    dom.playIcon.classList.add("hidden");
+    speak("Resume");
+  }
 }
 
-function skipInterval() {
-  if (state.intervalHandle) clearInterval(state.intervalHandle);
-  state.isRunning = false;
-  endInterval();
-}
-
-function confirmStop() {
-  if (confirm("Stop the timer? Progress will be lost.")) {
+function confirmRestart() {
+  if (confirm("Restart timer from the beginning?")) {
     if (state.intervalHandle) clearInterval(state.intervalHandle);
+    state.phaseIndex = 0;
+    state.completedRounds = 0;
     state.isPaused = false;
     state.isRunning = false;
+    state.startTime = Date.now();
+    closeMenu();
+    beginInterval(0);
+  }
+}
+
+function confirmExit() {
+  if (confirm("Exit timer? Progress will be lost.")) {
+    if (state.intervalHandle) clearInterval(state.intervalHandle);
     if (window.history.length > 1) window.history.back();
   }
 }
+
+// ============================================================
+// LOCK
+// ============================================================
+
+let unlockTimer = null;
+
+function toggleLock() {
+  if (state.isLocked) {
+    unlockLock();
+  } else {
+    lockInterface();
+  }
+}
+
+function lockInterface() {
+  state.isLocked = true;
+  state.scrollLocked = true;
+  dom.lockOverlay.classList.remove("hidden");
+  dom.intervalScroll.style.overflowY = "hidden";
+  closeMenu();
+}
+
+function unlockLock() {
+  state.isLocked = false;
+  state.scrollLocked = false;
+  dom.lockOverlay.classList.add("hidden");
+  dom.intervalScroll.style.overflowY = "auto";
+}
+
+function beginUnlockHold() {
+  unlockTimer = setTimeout(function () {
+    unlockLock();
+  }, 2000);
+}
+
+function cancelUnlockHold() {
+  if (unlockTimer) {
+    clearTimeout(unlockTimer);
+    unlockTimer = null;
+  }
+}
+
+function lockFromMenu() {
+  closeMenu();
+  setTimeout(lockInterface, 200);
+}
+
+// ============================================================
+// HAMBURGER MENU
+// ============================================================
+
+function openMenu() {
+  dom.hamburgerMenu.classList.remove("hidden");
+  state.isPaused = true;
+}
+
+function closeMenu() {
+  dom.hamburgerMenu.classList.add("hidden");
+  if (state.isRunning && !state.isLocked) {
+    state.isPaused = false;
+  }
+}
+
+// ============================================================
+// INPUT PROMPTS
+// ============================================================
 
 function showInputPrompt(prompt) {
   state.pendingInput = prompt;
@@ -340,6 +496,10 @@ function submitInput() {
   nextInterval();
 }
 
+// ============================================================
+// COMPLETE
+// ============================================================
+
 async function completeTimer() {
   if (state.intervalHandle) clearInterval(state.intervalHandle);
   state.isRunning = false;
@@ -353,9 +513,7 @@ async function completeTimer() {
 }
 
 async function logTimerCompletion() {
-  const inputData = state.collectedInputs.length
-    ? JSON.stringify(state.collectedInputs)
-    : "";
+  const inputData = state.collectedInputs.length ? JSON.stringify(state.collectedInputs) : "";
   const firstInput = state.collectedInputs.length ? state.collectedInputs[0].value : "";
 
   const params = new URLSearchParams();
@@ -371,9 +529,28 @@ async function logTimerCompletion() {
   params.append("inputData", inputData);
   params.append("notes", "");
 
-  try {
-    await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" });
-  } catch (e) {}
+  try { await fetch(ENDPOINT + "?" + params.toString(), { method: "GET" }); } catch (e) {}
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function colorForType(type) {
+  if (type === "rest") return "#ff3b30";
+  if (type === "prep") return "#c0c0c0";
+  if (type === "mobility") return "#ff2cd9";
+  if (type === "lift") return "#00e5ff";
+  if (type === "cooldown") return "#ff9f1c";
+  if (type === "circuit") return "#00e5ff";
+  return "#b8f52c"; // default work = green
+}
+
+function formatDuration(seconds) {
+  const s = Math.max(0, seconds | 0);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m + ":" + String(r).padStart(2, "0");
 }
 
 function speak(text) {
@@ -393,15 +570,20 @@ function shouldCue(name) {
   try {
     const cues = JSON.parse(state.timer.ttsCues);
     return cues[name] !== false;
-  } catch (e) {
-    return true;
-  }
+  } catch (e) { return true; }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function showError(msg) {
   dom.errorMsg.textContent = msg;
   dom.errorMsg.classList.remove("hidden");
-  setTimeout(function () {
-    dom.errorMsg.classList.add("hidden");
-  }, 6000);
+  setTimeout(function () { dom.errorMsg.classList.add("hidden"); }, 6000);
 }
+
