@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER BUILDER — v5 with corrected endpoint
+// TIMER BUILDER — v6 with fixed drag-and-drop
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -283,7 +283,7 @@ function renderIntervalRow(iv, index) {
   row.className = "interval-row";
   if (iv.type === "circuit") row.classList.add("is-circuit");
   row.dataset.index = index;
-  row.draggable = false;
+  row.draggable = true;
 
   const color = iv.color || (iv.type === "circuit" ? "#2e6cf6" : "#b8f52c");
   const isCircuit = iv.type === "circuit";
@@ -333,18 +333,8 @@ function renderIntervalRow(iv, index) {
 }
 
 function attachDragHandlers(row, index) {
-  const handle = row.querySelector(".drag-handle");
-
-  handle.addEventListener("mousedown", startDrag);
-  handle.addEventListener("touchstart", startDrag, { passive: false });
-
-  function startDrag(e) {
-    e.preventDefault();
-    row.draggable = true;
-    state.dragSourceIndex = index;
-    row.classList.add("dragging");
-  }
-
+  // HTML5 native drag. Do NOT add mousedown/touchstart preventDefault —
+  // that kills Chrome's drag initiation.
   row.addEventListener("dragstart", function (e) {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(index));
@@ -354,7 +344,6 @@ function attachDragHandlers(row, index) {
 
   row.addEventListener("dragend", function () {
     row.classList.remove("dragging");
-    row.draggable = false;
     clearDragHints();
     state.dragSourceIndex = -1;
     state.dragTargetIndex = -1;
@@ -376,6 +365,7 @@ function attachDragHandlers(row, index) {
 
   row.addEventListener("drop", function (e) {
     e.preventDefault();
+    e.stopPropagation();
     if (state.dragTargetIndex < 0) return;
     performDragReorder(state.dragSourceIndex, state.dragTargetIndex);
   });
@@ -767,3 +757,4 @@ function showToast(msg, isError) {
   if (isError) t.classList.add("error");
   setTimeout(function () { t.classList.add("hidden"); }, 2400);
 }
+
