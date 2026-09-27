@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — with start button
+// TIMER PLAYER — with circuit engine
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
@@ -100,29 +100,64 @@ async function fetchTimer() {
       return;
     }
     state.timer = data.timer;
-    prepareStartScreen();
+    dom.startTitle.textContent = state.timer.timerName || "Timer";
+    dom.startSubtitle.textContent = "Tap START to begin";
   } catch (e) {
     showError("Network error loading timer");
   }
 }
 
-function prepareStartScreen() {
-  // Show the timer name on the start card
-  dom.startTitle.textContent = state.timer.timerName || "Timer";
-  dom.startSubtitle.textContent = "Tap START to begin";
-  // Start screen is visible by default. Timer app is hidden.
+// ============================================================
+// CIRCUIT ENGINE — expands nested circuits into flat sequence
+// ============================================================
+
+function expandStructure(raw) {
+  const flat = [];
+
+  function walk(items, roundContext) {
+    items.forEach(function (iv) {
+      if (iv.type === "circuit") {
+        const rounds = parseInt(iv.rounds, 10) || 1;
+        const inner = iv.intervals || [];
+        for (let r = 1; r <= rounds; r++) {
+          inner.forEach(function (innerIv) {
+            const copy = Object.assign({}, innerIv);
+            copy.roundNumber = r;
+            copy.totalRoundCount = rounds;
+            copy.roundLabel = iv.name || "Round";
+            flat.push(copy);
+          });
+          if (iv.afterEach && r < rounds) {
+            flat.push(Object.assign({}, iv.afterEach));
+          } else if (iv.afterEach && r === rounds && iv.afterLast) {
+            flat.push(Object.assign({}, iv.afterEach));
+          }
+        }
+        if (iv.afterCircuit) {
+          flat.push(Object.assign({}, iv.afterCircuit));
+        }
+      } else {
+        flat.push(Object.assign({}, iv));
+      }
+    });
+  }
+
+  walk(raw || [], null);
+  return flat;
 }
 
 function handleStart() {
-  // User gesture just happened. Now we can speak.
   state.hasStarted = true;
   dom.startScreen.classList.add("hidden");
   dom.timerApp.classList.remove("hidden");
 
   const t = state.timer;
 
-  try { state.structure = JSON.parse(t.structure || "[]"); }
-  catch (e) { state.structure = []; }
+  let rawStructure = [];
+  try { rawStructure = JSON.parse(t.structure || "[]"); }
+  catch (e) { rawStructure = []; }
+
+  state.structure = expandStructure(rawStructure);
 
   try { state.inputPrompts = JSON.parse(t.inputPrompts || "[]"); }
   catch (e) { state.inputPrompts = []; }
@@ -132,7 +167,10 @@ function handleStart() {
     return;
   }
 
-  state.totalRounds = state.structure.filter(function (iv) { return iv.type === "work"; }).length || 1;
+  // Total rounds = unique roundLabel values count * circuits
+  const workIntervals = state.structure.filter(function (iv) { return iv.type === "work"; });
+  state.totalRounds = workIntervals.length || 1;
+
   state.phaseIndex = 0;
   state.round = 1;
   state.completedRounds = 0;
@@ -235,7 +273,10 @@ function updatePhaseUI(iv) {
   dom.intervalName.textContent = iv.name || iv.type || "";
 
   if (iv.type === "work") {
-    dom.roundInfo.textContent = "Round " + (state.completedRounds + 1) + " of " + state.totalRounds;
+    const roundInfo = iv.roundNumber
+      ? "Round " + iv.roundNumber + " of " + iv.totalRoundCount
+      : "Round " + (state.completedRounds + 1) + " of " + state.totalRounds;
+    dom.roundInfo.textContent = roundInfo;
   } else {
     dom.roundInfo.textContent = "";
   }
