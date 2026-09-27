@@ -1,15 +1,11 @@
 // ============================================================
-// THE PROGRAM — app2.js (v3.1 — cancel bug fixed)
+// THE PROGRAM — app2.js (v5, corrected endpoint)
 // ============================================================
 
-const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
+const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
 const TUTORIAL_THRESHOLD = 30;
 const STAGE_WINDOW_MS = 3000;
 const PENDING_KEY = "pendingSets";
-
-// ============================================================
-// STATE
-// ============================================================
 
 const state = {
   token: null,
@@ -26,10 +22,6 @@ const state = {
   barToggleCount: 0,
   unitsToggleCount: 0
 };
-
-// ============================================================
-// DOM
-// ============================================================
 
 const $ = function (id) { return document.getElementById(id); };
 
@@ -67,10 +59,6 @@ const dom = {
   toast: $("toast")
 };
 
-// ============================================================
-// STARTUP
-// ============================================================
-
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
   wireOfflineDetection();
@@ -79,7 +67,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
 function wireEvents() {
   dom.loginBtn.addEventListener("click", handleLogin);
-  dom.loginPin.addEventListener("keydown", function (e) { if (e.key === "Enter") handleLogin(); });
+  dom.loginPin.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") handleLogin();
+  });
+
   dom.loginName.addEventListener("change", function () {
     localStorage.setItem("lastAthlete", dom.loginName.value);
     dom.loginPin.focus();
@@ -88,6 +79,7 @@ function wireEvents() {
   dom.planBtns.forEach(function (btn) {
     btn.addEventListener("click", function () { selectPlan(btn.dataset.plan); });
   });
+
   dom.tabBtns.forEach(function (btn) {
     btn.addEventListener("click", function () { switchTab(btn.dataset.tab); });
   });
@@ -121,10 +113,6 @@ function wireEvents() {
   });
 }
 
-// ============================================================
-// NETWORK
-// ============================================================
-
 async function callAPI(payload) {
   const params = new URLSearchParams();
   Object.keys(payload).forEach(function (k) {
@@ -137,10 +125,6 @@ async function callAPI(payload) {
   try { return JSON.parse(text); }
   catch (e) { return { ok: false, error: "Bad response: " + text.slice(0, 120) }; }
 }
-
-// ============================================================
-// OFFLINE
-// ============================================================
 
 function wireOfflineDetection() {
   if (!navigator.onLine) dom.offlineBanner.classList.remove("hidden");
@@ -179,10 +163,6 @@ async function flushOfflineQueue() {
   saveOfflineQueue();
   if (!remaining.length) showToast("Offline sets synced");
 }
-
-// ============================================================
-// PENDING SETS
-// ============================================================
 
 function loadPendingSets() {
   try {
@@ -223,10 +203,6 @@ async function flushPendingSets() {
   if (!remaining.length) showToast("Pending sets synced");
 }
 
-// ============================================================
-// REMEMBERED NAME
-// ============================================================
-
 function loadRememberedName() {
   const saved = localStorage.getItem("lastAthlete");
   if (saved) dom.loginName.value = saved;
@@ -248,10 +224,6 @@ async function loadAthleteDropdown() {
     if (current) dom.loginName.value = current;
   } catch (e) {}
 }
-
-// ============================================================
-// LOGIN / LOGOUT
-// ============================================================
 
 async function handleLogin() {
   const name = dom.loginName.value.trim();
@@ -317,10 +289,6 @@ function enterApp() {
   showWelcomePopup(false);
 }
 
-// ============================================================
-// PROFILE BAR
-// ============================================================
-
 function renderProfileBar() {
   const existing = $("profileBar");
   if (existing) existing.remove();
@@ -361,10 +329,6 @@ function offerUnitsChange() {
   showToast("Noted — update in the sheet to make it permanent.");
   state.unitsToggleCount = 0;
 }
-
-// ============================================================
-// PLAN SELECTION
-// ============================================================
 
 function selectPlan(plan) {
   state.currentPlan = plan;
@@ -407,6 +371,11 @@ function buildExerciseCard(ex, plan) {
   if (metaParts.length) html += '<div class="exercise-meta">' + metaParts.join(' &nbsp;•&nbsp; ') + '</div>';
 
   if (ex.notes) html += '<div class="exercise-notes">' + escapeHtml(ex.notes) + '</div>';
+
+  if (ex.timerId) {
+    html += '<button class="timer-launch-btn" data-timer="' + escapeHtml(ex.timerId) + '">▶ Run Timer: ' + escapeHtml(ex.timerId) + '</button>';
+  }
+
   html += '<div class="set-compare" data-exercise="' + escapeHtml(ex.name) + '"></div>';
   html += '<button class="full-history-link" data-exercise="' + escapeHtml(ex.name) + '">Open full history for this lift</button>';
 
@@ -418,6 +387,18 @@ function buildExerciseCard(ex, plan) {
   card.querySelector(".full-history-link").addEventListener("click", function () {
     openLastTimeModal(ex.name);
   });
+
+  const timerBtn = card.querySelector(".timer-launch-btn");
+  if (timerBtn) {
+    timerBtn.addEventListener("click", function () {
+      const tid = timerBtn.dataset.timer;
+      const url = "timer.html?id=" + encodeURIComponent(tid) +
+        "&token=" + encodeURIComponent(state.token) +
+        "&athlete=" + encodeURIComponent(state.athlete);
+      window.open(url, "_blank");
+    });
+  }
+
   return card;
 }
 
@@ -496,10 +477,6 @@ function renderTargetLabel(setInfo) {
   return val;
 }
 
-// ============================================================
-// BAR LOADING
-// ============================================================
-
 const BAR_OPTIONS_LB = [11, 22, 33, 44, 45, 55, 65];
 const BAR_OPTIONS_KG = [5, 10, 15, 20, 25, 30];
 
@@ -566,10 +543,6 @@ function offerBarPreferenceChange() {
   showToast("Noted — update in the sheet to make it permanent.");
   state.barToggleCount = 0;
 }
-
-// ============================================================
-// LOG A SET — with staging window (cancel bug fixed)
-// ============================================================
 
 function handleLogSet(exerciseName, plan, setInfo, idBase) {
   const weight = $(idBase + "_w").value;
@@ -681,10 +654,6 @@ async function commitSet(payload, btn, exerciseName) {
   }
 }
 
-// ============================================================
-// LAST TIME
-// ============================================================
-
 async function loadLastTimesForPlan(plan) {
   const exercises = (state.programs && state.programs[plan]) || [];
   for (let i = 0; i < exercises.length; i++) await loadLastTimeForExercise(exercises[i].name);
@@ -759,20 +728,12 @@ function openLastTimeModal(exerciseName) {
   dom.lastTimeModal.classList.remove("hidden");
 }
 
-// ============================================================
-// TABS
-// ============================================================
-
 function switchTab(tabName) {
   dom.tabBtns.forEach(function (b) { b.classList.toggle("active", b.dataset.tab === tabName); });
   dom.tabWorkout.classList.toggle("hidden", tabName !== "workout");
   dom.tabHistory.classList.toggle("hidden", tabName !== "history");
   if (tabName === "history") loadAndRenderHistory();
 }
-
-// ============================================================
-// HISTORY
-// ============================================================
 
 async function loadAndRenderHistory() {
   dom.historyList.innerHTML = '<div class="history-empty">Loading…</div>';
@@ -870,10 +831,6 @@ function renderHistory() {
   });
 }
 
-// ============================================================
-// EDIT MODAL
-// ============================================================
-
 function openEditModal(setRow) {
   if (!dom.editModal) { showToast("Edit modal not available", true); return; }
 
@@ -900,7 +857,6 @@ function openEditModal(setRow) {
     '</div>';
 
   dom.editModal.classList.remove("hidden");
-
   $("editCancelBtn").addEventListener("click", closeEditModal);
   $("editSaveBtn").addEventListener("click", function () { saveEdit(setRow); });
   $("editDeleteBtn").addEventListener("click", function () { confirmDelete(setRow); });
@@ -915,49 +871,25 @@ async function saveEdit(setRow) {
   const reps = $("editReps").value;
   const grade = $("editGrade").value;
   const notes = $("editNotes").value;
-
   showToast("Saving…");
   try {
     const res = await callAPI({
-      action: "updateSet",
-      token: state.token,
-      timestamp: setRow.iso,
-      weight: weight,
-      reps: reps,
-      grade: grade,
-      notes: notes
+      action: "updateSet", token: state.token, timestamp: setRow.iso,
+      weight: weight, reps: reps, grade: grade, notes: notes
     });
-    if (res && res.ok) {
-      showToast("Updated");
-      closeEditModal();
-      loadAndRenderHistory();
-    } else {
-      showToast((res && res.error) || "Update failed", true);
-    }
-  } catch (e) {
-    showToast("Network error", true);
-  }
+    if (res && res.ok) { showToast("Updated"); closeEditModal(); loadAndRenderHistory(); }
+    else { showToast((res && res.error) || "Update failed", true); }
+  } catch (e) { showToast("Network error", true); }
 }
 
 async function confirmDelete(setRow) {
   if (!confirm("Delete this set? This cannot be undone.")) return;
   try {
     const res = await callAPI({ action: "deleteSet", token: state.token, timestamp: setRow.iso });
-    if (res && res.ok) {
-      showToast("Deleted");
-      closeEditModal();
-      loadAndRenderHistory();
-    } else {
-      showToast((res && res.error) || "Delete failed", true);
-    }
-  } catch (e) {
-    showToast("Network error", true);
-  }
+    if (res && res.ok) { showToast("Deleted"); closeEditModal(); loadAndRenderHistory(); }
+    else { showToast((res && res.error) || "Delete failed", true); }
+  } catch (e) { showToast("Network error", true); }
 }
-
-// ============================================================
-// WELCOME POPUP
-// ============================================================
 
 function showWelcomePopup(fromHelpButton) {
   if (!fromHelpButton && localStorage.getItem("hideTutorial") === "1") return;
@@ -987,10 +919,6 @@ function showWelcomePopup(fromHelpButton) {
 
 function hideWelcomePopup() { dom.welcomePopup.classList.add("hidden"); }
 function dontShowAgain() { localStorage.setItem("hideTutorial", "1"); hideWelcomePopup(); }
-
-// ============================================================
-// DOWNLOAD EMPTY LOG
-// ============================================================
 
 function downloadCsv() {
   const plan = state.currentPlan;
@@ -1045,19 +973,11 @@ function triggerDownload(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-// ============================================================
-// REFRESH
-// ============================================================
-
 async function refreshData() {
   showToast("Refreshing…");
   if (state.currentPlan) await loadLastTimesForPlan(state.currentPlan);
   if (!dom.tabHistory.classList.contains("hidden")) await loadAndRenderHistory();
 }
-
-// ============================================================
-// HELPERS
-// ============================================================
 
 function escapeHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
