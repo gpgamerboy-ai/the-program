@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — v2 with Seconds Pro layout
+// TIMER PLAYER — v2 with Seconds Pro layout + tap-to-jump
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbzA1JpCvFrKEXd4VhSec_f8uqH760HIXKv6DcenF06zySPxuGDT4KP8RBycZW5XDM2kaw/exec";
@@ -212,6 +212,11 @@ function beginInterval(index) {
   state.phaseIndex = index;
   state.timeLeft = parseInt(iv.duration, 10) || 0;
   state.isRunning = true;
+  state.isPaused = false;
+
+  // Reset pause/play icon
+  dom.pauseIcon.classList.remove("hidden");
+  dom.playIcon.classList.add("hidden");
 
   document.body.className = "phase-" + (iv.type || "work");
   updateMasterClock();
@@ -227,8 +232,6 @@ function beginInterval(index) {
       speak("Next: " + (nextIv.name || nextIv.type));
     }, 1500);
   }
-
-  if (iv.type === "work") state.completedRounds++;
 
   startTicking();
 }
@@ -260,6 +263,7 @@ function startTicking() {
 
 function endInterval() {
   const iv = state.structure[state.phaseIndex];
+  if (iv.type === "work") state.completedRounds++;
 
   const prompt = state.inputPrompts.find(function (p) {
     return p.atEnd && (p.afterInterval === state.phaseIndex + 1 || p.afterType === iv.type);
@@ -280,6 +284,45 @@ function nextInterval() {
 }
 
 // ============================================================
+// JUMP TO INTERVAL (tap a card)
+// ============================================================
+
+function jumpToInterval(index) {
+  // If locked, ignore taps
+  if (state.isLocked) return;
+
+  // Confirm if there's meaningful work in progress (past the first 3 seconds)
+  const iv = state.structure[state.phaseIndex];
+  const elapsedInCurrent = iv ? (parseInt(iv.duration, 10) - state.timeLeft) : 0;
+  const meaningful = elapsedInCurrent > 3 && index !== state.phaseIndex;
+
+  if (meaningful) {
+    if (!confirm("Jump to this interval? Current interval will be skipped.")) {
+      return;
+    }
+  }
+
+  // Stop the current tick
+  if (state.intervalHandle) clearInterval(state.intervalHandle);
+  state.isRunning = false;
+  state.isPaused = false;
+
+  // Reset pause/play icon in case we were paused
+  dom.pauseIcon.classList.remove("hidden");
+  dom.playIcon.classList.add("hidden");
+
+  // Reset completedRounds based on how many work intervals are being skipped
+  let workCount = 0;
+  for (let i = 0; i < index; i++) {
+    if (state.structure[i].type === "work") workCount++;
+  }
+  state.completedRounds = workCount;
+
+  // Jump
+  beginInterval(index);
+}
+
+// ============================================================
 // RENDERING
 // ============================================================
 
@@ -291,6 +334,7 @@ function renderIntervalList() {
     card.className = "interval-card";
     card.dataset.index = i;
     card.dataset.type = iv.type || "work";
+    card.style.cursor = "pointer";
 
     const color = iv.color || colorForType(iv.type);
     card.style.background = color;
@@ -303,6 +347,10 @@ function renderIntervalList() {
       '<div class="iv-label">' + escapeHtml(label) + '</div>' +
       '<div class="iv-name">' + escapeHtml(name) + '</div>' +
       '<div class="iv-duration">' + dur + '</div>';
+
+    card.addEventListener("click", function () {
+      jumpToInterval(i);
+    });
 
     dom.intervalList.appendChild(card);
   });
@@ -317,6 +365,10 @@ function updateIntervalList() {
     else if (i === state.phaseIndex) card.classList.add("current");
     else if (i === state.phaseIndex + 1) card.classList.add("next");
     else card.classList.add("upcoming");
+
+    // Update label text
+    const label = card.querySelector(".iv-label");
+    if (label) label.textContent = getLabelForPosition(i);
   });
 }
 
@@ -413,11 +465,8 @@ function confirmExit() {
 let unlockTimer = null;
 
 function toggleLock() {
-  if (state.isLocked) {
-    unlockLock();
-  } else {
-    lockInterface();
-  }
+  if (state.isLocked) unlockLock();
+  else lockInterface();
 }
 
 function lockInterface() {
@@ -543,7 +592,7 @@ function colorForType(type) {
   if (type === "lift") return "#00e5ff";
   if (type === "cooldown") return "#ff9f1c";
   if (type === "circuit") return "#00e5ff";
-  return "#b8f52c"; // default work = green
+  return "#b8f52c";
 }
 
 function formatDuration(seconds) {
@@ -586,4 +635,3 @@ function showError(msg) {
   dom.errorMsg.classList.remove("hidden");
   setTimeout(function () { dom.errorMsg.classList.add("hidden"); }, 6000);
 }
-
