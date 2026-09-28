@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f1115" />
+  <title>Program Creator</title>
+  <link rel="stylesheet" href="style2.css?v=7" />
+  <style>
+    .pc-header {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+    }
+    .pc-header h1 { margin: 0; font-size: 17px; }
+    .pc-main { max-width: 1100px; margin: 0 auto; padding: 16px; padding-bottom: 80px; }
+    .pc-step {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .pc-step h2 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;
+      color: var(--accent); margin: 0 0 12px;
+    }
+    .pc-step p { font-size: 13px; color: var(--text-dim); margin: 0 0 12px; }
+    .pc-step textarea {
+      width: 100%; padding: 12px; font-size: 13px;
+      border-radius: 8px; border: 1px solid var(--border-strong);
+      background: var(--bg-input); color: var(--text);
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      resize: vertical; min-height: 180px;
+    }
+    .pc-step textarea:focus { outline: none; border-color: var(--accent); }
+    .pc-actions {
+      display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+    }
+    .pc-actions button {
+      padding: 10px 18px; font-size: 14px; font-weight: 600;
+      border-radius: 8px; border: 1px solid var(--border-strong);
+      background: var(--bg-elevated); color: var(--text);
+      cursor: pointer;
+    }
+    .pc-actions button.primary {
+      background: var(--accent); border-color: var(--accent); color: #fff;
+    }
+    .pc-actions button.primary:active { opacity: 0.85; }
+    .pc-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .pc-actions button:active:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .pc-actions button.primary:active:not(:disabled) { color: #fff; }
+
+    .pc-program-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 12px;
+      margin: 12px 0;
+    }
+    .pc-program-row input,
+    .pc-program-row select {
+      padding: 10px 12px; font-size: 14px;
+      border-radius: 8px; border: 1px solid var(--border-strong);
+      background: var(--bg-input); color: var(--text);
+      appearance: none;
+    }
+    .pc-program-row input:focus,
+    .pc-program-row select:focus { outline: none; border-color: var(--accent); }
+
+    .pc-preview-summary {
+      display: flex; gap: 16px; flex-wrap: wrap;
+      padding: 12px; margin-bottom: 12px;
+      background: var(--bg-input);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .pc-preview-summary span { color: var(--text-dim); }
+    .pc-preview-summary strong { color: var(--text-bright); }
+
+    .pc-preview-wrap {
+      max-height: 400px; overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-input);
+    }
+    .pc-preview-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 11px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+    .pc-preview-table th {
+      position: sticky; top: 0;
+      background: var(--bg-elevated);
+      color: var(--text-dim);
+      font-weight: 700; text-transform: uppercase;
+      font-size: 10px; letter-spacing: 0.5px;
+      padding: 8px 6px; text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .pc-preview-table td {
+      padding: 6px; border-bottom: 1px solid var(--border);
+      color: var(--text); vertical-align: top;
+    }
+    .pc-preview-table tr.error td {
+      background: rgba(179, 64, 47, 0.15);
+      color: var(--danger);
+    }
+    .pc-preview-table tr.warn td {
+      background: rgba(210, 154, 31, 0.12);
+    }
+    .pc-issue-list {
+      margin-top: 12px; padding: 12px;
+      background: rgba(179, 64, 47, 0.1);
+      border-left: 3px solid var(--danger);
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    .pc-issue-list strong { color: var(--danger); }
+    .pc-issue-list ul { margin: 6px 0 0 0; padding-left: 20px; }
+    .pc-issue-list li { margin-bottom: 4px; }
+
+    .pc-toast {
+      position: fixed; bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 22px; border-radius: 10px;
+      background: var(--success); color: #fff;
+      font-size: 14px; font-weight: 600;
+      z-index: 3000;
+    }
+    .pc-toast.error { background: var(--danger); }
+  </style>
+</head>
+<body>
+
+  <!-- KEY GATE -->
+  <section id="keyGate" class="key-gate">
+    <h2>Coach Access</h2>
+    <input id="pcKeyInput" type="password" placeholder="Enter coach key" />
+    <button id="pcKeyBtn">Enter</button>
+    <div id="pcKeyErr" class="err"></div>
+  </section>
+
+  <!-- MAIN -->
+  <section id="pcApp" class="hidden">
+
+    <header class="pc-header">
+      <h1>Program Creator</h1>
+      <div style="display:flex;gap:8px;">
+        <a href="coach.html" class="icon-btn" title="Back to coach view" style="text-decoration:none;">←</a>
+        <button id="pcLogoutBtn" class="icon-btn" title="Sign out">⏻</button>
+      </div>
+    </header>
+
+    <main class="pc-main">
+
+      <!-- STEP 1: PROMPT -->
+      <section class="pc-step">
+        <h2>Step 1 — Copy the AI prompt</h2>
+        <p>Paste this into any AI chat (DeepSeek, ChatGPT, Claude, etc.). Add your specific program request at the bottom.</p>
+        <textarea id="promptText" readonly></textarea>
+        <div class="pc-actions">
+          <button id="copyPromptBtn" class="primary">Copy prompt</button>
+        </div>
+      </section>
+
+      <!-- STEP 2: PASTE -->
+      <section class="pc-step">
+        <h2>Step 2 — Paste the AI response</h2>
+        <p>Paste the TSV rows the AI returned. Exactly as-is. No cleanup needed.</p>
+        <textarea id="pasteArea" placeholder="Paste TSV rows here..."></textarea>
+        <div class="pc-actions">
+          <button id="validateBtn" class="primary">Validate &amp; Preview</button>
+          <button id="clearBtn">Clear</button>
+        </div>
+      </section>
+
+      <!-- STEP 3: PREVIEW + SAVE -->
+      <section class="pc-step hidden" id="previewStep">
+        <h2>Step 3 — Preview &amp; save</h2>
+        <div id="previewSummary" class="pc-preview-summary"></div>
+        <div id="issueList"></div>
+        <div class="pc-preview-wrap">
+          <table class="pc-preview-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Program</th>
+                <th>Week</th>
+                <th>Day</th>
+                <th>Exercise</th>
+                <th>Type</th>
+                <th>Rest</th>
+                <th>Tempo</th>
+                <th>SetNum</th>
+                <th>TargetType</th>
+                <th>TargetValue</th>
+                <th>TargetNote</th>
+                <th>LoadLogic</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+
+        <div class="pc-program-row">
+          <input id="programNameInput" type="text" placeholder="Program name (e.g. Lopez Fall)" />
+          <select id="saveModeSelect">
+            <option value="new">New program</option>
+            <option value="append">Add to existing</option>
+            <option value="replace">Replace entire program</option>
+          </select>
+        </div>
+
+        <div class="pc-actions">
+          <button id="saveBtn" class="primary">Save to sheet</button>
+          <button id="cancelBtn">Cancel</button>
+        </div>
+      </section>
+
+    </main>
+  </section>
+
+  <div id="pcToast" class="pc-toast hidden"></div>
+
+  <script src="program-creator.js?v=1"></script>
+</body>
+</html>
