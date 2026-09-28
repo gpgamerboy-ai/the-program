@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — v7 (start button waits for timer data)
+// TIMER PLAYER — v8 (preview from localStorage + circuit override + next-up timing)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -10,6 +10,7 @@ const state = {
   token: null,
   coachKey: null,
   isPreview: false,
+  isFromBuilder: false,
   athlete: null,
   phaseIndex: 0,
   round: 1,
@@ -27,7 +28,8 @@ const state = {
   hasStarted: false,
   startTime: null,
   totalDuration: 0,
-  scrollLocked: false
+  scrollLocked: false,
+  nextUpFired: false
 };
 
 const $ = function (id) { return document.getElementById(id); };
@@ -110,6 +112,7 @@ function loadTimerFromURL() {
   const params = new URLSearchParams(window.location.search);
   state.timerId = params.get("id");
   state.isPreview = params.get("preview") === "1";
+  state.isFromBuilder = params.get("fromBuilder") === "1";
   state.coachKey = params.get("key");
   state.token = params.get("token") || localStorage.getItem("sessionToken");
   state.athlete = params.get("athlete") || localStorage.getItem("lastAthlete");
@@ -120,6 +123,24 @@ function loadTimerFromURL() {
     if (!state.coachKey) { showError("Preview mode requires ?key=COACH_KEY"); return; }
   } else {
     if (!state.token) { showError("No session token. Log in to the athlete app first."); return; }
+  }
+
+  // Preview-from-builder: check localStorage first
+  if (state.isFromBuilder) {
+    const stored = localStorage.getItem("previewTimer");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        state.timer = parsed;
+        localStorage.removeItem("previewTimer");
+        dom.startTitle.textContent = parsed.timerName || "Untitled Timer";
+        dom.startSubtitle.textContent = "Preview from builder — unsaved changes";
+        setStartBtnEnabled(true, "START");
+        return;
+      } catch (e) {
+        localStorage.removeItem("previewTimer");
+      }
+    }
   }
 
   fetchTimer();
@@ -171,16 +192,27 @@ function expandStructure(raw) {
     if (iv.type === "circuit") {
       const rounds = parseInt(iv.rounds, 10) || 1;
       const inner = iv.intervals || [];
+      const circuitMuted = iv.ttsEnabled === false;
       for (let r = 1; r <= rounds; r++) {
         inner.forEach(function (innerIv) {
           const copy = Object.assign({}, innerIv);
           copy.roundNumber = r;
           copy.totalRoundCount = rounds;
+          // Block master override: if circuit is muted, children mute too
+          if (circuitMuted) copy.ttsEnabled = false;
           flat.push(copy);
         });
-        if (iv.afterEach && r < rounds) flat.push(Object.assign({}, iv.afterEach));
+        if (iv.afterEach && r < rounds) {
+          const rest = Object.assign({}, iv.afterEach);
+          if (circuitMuted) rest.ttsEnabled = false;
+          flat.push(rest);
+        }
       }
-      if (iv.afterCircuit) flat.push(Object.assign({}, iv.afterCircuit));
+      if (iv.afterCircuit) {
+        const rest = Object.assign({}, iv.afterCircuit);
+        if (circuitMuted) rest.ttsEnabled = false;
+        flat.push(rest);
+      }
     } else {
       flat.push(Object.assign({}, iv));
     }
@@ -242,6 +274,7 @@ function beginInterval(index) {
   state.timeLeft = parseInt(iv.duration, 10) || 0;
   state.isRunning = true;
   state.isPaused = false;
+  state.nextUpFired = false;
 
   dom.pauseIcon.classList.remove("hidden");
   dom.playIcon.classList.add("hidden");
@@ -254,13 +287,6 @@ function beginInterval(index) {
 
   if (isTtsEnabled(iv)) {
     speak(iv.name || iv.type);
-  }
-
-  const nextIv = state.structure[index + 1];
-  if (nextIv && shouldCue("nextUp") && isTtsEnabled(nextIv)) {
-    setTimeout(function () {
-      speak("Next: " + (nextIv.name || nextIv.type));
-    }, 1500);
   }
 
   startTicking();
@@ -276,9 +302,24 @@ function startTicking() {
 
     const iv = state.structure[state.phaseIndex];
     const ttsOn = isTtsEnabled(iv);
-    const halfwayThreshold = Math.floor((parseInt(iv.duration, 10) || 0) / 2);
+    const duration = parseInt(iv.duration, 10) || 0;
+    const halfwayThreshold = Math.floor(duration / 2);
+
     if (ttsOn && state.timeLeft === halfwayThreshold && shouldCue("halfway")) speak("Halfway");
     if (ttsOn && state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) speak(String(state.timeLeft));
+
+    // NEXT-UP CUE — fires at the right moment
+    // If countdown is on: fire at 4s remaining (1s before the "3")
+    // If countdown is off: fire at 5s remaining
+    const nextIv = state.structure[state.phaseIndex + 1];
+    if (!state.nextUpFired && nextIv && shouldCue("nextUp") && isTtsEnabled(nextIv)) {
+      const countdownOn = shouldCue("countdown3s") && ttsOn;
+      const triggerAt = countdownOn ? 4 : 5;
+      if (state.timeLeft === triggerAt) {
+        state.nextUpFired = true;
+        speak("Next: " + (nextIv.name || nextIv.type));
+      }
+    }
 
     if (state.timeLeft <= 0) {
       clearInterval(state.intervalHandle);
