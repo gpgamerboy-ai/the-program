@@ -1,5 +1,5 @@
 // ============================================================
-// THE PROGRAM — app2.js (v6.2, phone number removed)
+// THE PROGRAM — app2.js (v7.0, athlete messaging)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -13,6 +13,7 @@ const state = {
   program: null,
   programs: null,
   profile: null,
+  coachId: null,
   sessionCount: 0,
   currentPlan: null,
   lastTimeCache: {},
@@ -20,7 +21,9 @@ const state = {
   historyRows: [],
   sessionUnits: null,
   barToggleCount: 0,
-  unitsToggleCount: 0
+  unitsToggleCount: 0,
+  messages: [],
+  unreadCount: 0
 };
 
 const $ = function (id) { return document.getElementById(id); };
@@ -37,6 +40,12 @@ const dom = {
   helpBtn: $("helpBtn"),
   refreshBtn: $("refreshBtn"),
   logoutBtn: $("logoutBtn"),
+  msgIconBtn: $("msgIconBtn"),
+  msgBadge: $("msgBadge"),
+  msgBanner: $("msgBanner"),
+  msgThreadModal: $("msgThreadModal"),
+  msgThreadContent: $("msgThreadContent"),
+  msgThreadClose: $("msgThreadClose"),
   planBtns: document.querySelectorAll(".plan-btn"),
   exerciseList: $("exerciseList"),
   downloadCsvBtn: $("downloadCsvBtn"),
@@ -101,6 +110,11 @@ function wireEvents() {
   window.addEventListener("offline", function () {
     dom.offlineBanner.classList.remove("hidden");
   });
+
+  // Messaging
+  if (dom.msgIconBtn) dom.msgIconBtn.addEventListener("click", openThread);
+  if (dom.msgBanner) dom.msgBanner.addEventListener("click", openThread);
+  if (dom.msgThreadClose) dom.msgThreadClose.addEventListener("click", closeThread);
 }
 
 async function callAPI(payload) {
@@ -237,6 +251,7 @@ async function handleLogin() {
     state.program = res.program;
     state.programs = res.programs;
     state.profile = res.profile || {};
+    state.coachId = res.coachId || "coach-malcolm";
     state.sessionCount = res.sessionCount || 0;
     state.sessionUnits = null;
     state.barToggleCount = 0;
@@ -248,6 +263,7 @@ async function handleLogin() {
 
     enterApp();
     flushPendingSets();
+    loadMessages();
   } catch (e) {
     dom.loginError.textContent = "Could not reach server. Check connection.";
     dom.loginBtn.disabled = false;
@@ -261,6 +277,8 @@ function handleLogout() {
     state[k] = null;
   });
   state.lastTimeCache = {};
+  state.messages = [];
+  state.unreadCount = 0;
   localStorage.removeItem("sessionToken");
   localStorage.removeItem("sessionExpires");
   dom.appScreen.classList.add("hidden");
@@ -268,6 +286,8 @@ function handleLogout() {
   dom.loginPin.value = "";
   dom.loginBtn.disabled = false;
   dom.loginBtn.textContent = "Log In";
+  if (dom.msgBadge) dom.msgBadge.classList.add("hidden");
+  if (dom.msgBanner) dom.msgBanner.classList.add("hidden");
 }
 
 function enterApp() {
@@ -278,6 +298,153 @@ function enterApp() {
   selectPlan(null);
   showWelcomePopup(false);
 }
+
+// ============================================================
+// MESSAGING — athlete side
+// ============================================================
+
+async function loadMessages() {
+  if (!state.token) return;
+  try {
+    const res = await callAPI({ action: "getMessages", token: state.token });
+    if (res && res.ok) {
+      state.messages = res.messages || [];
+      computeUnread();
+      renderMessageBadge();
+      renderMessageBanner();
+    }
+  } catch (e) {}
+}
+
+function computeUnread() {
+  state.unreadCount = (state.messages || []).filter(function (m) {
+    return m.direction === "out" && !m.read;
+  }).length;
+}
+
+function renderMessageBadge() {
+  if (!dom.msgBadge) return;
+  if (state.unreadCount > 0) {
+    dom.msgBadge.textContent = String(state.unreadCount);
+    dom.msgBadge.classList.remove("hidden");
+  } else {
+    dom.msgBadge.classList.add("hidden");
+  }
+}
+
+function renderMessageBanner() {
+  if (!dom.msgBanner) return;
+  const unreadOut = (state.messages || []).filter(function (m) {
+    return m.direction === "out" && !m.read;
+  });
+  if (!unreadOut.length) {
+    dom.msgBanner.classList.add("hidden");
+    return;
+  }
+  const latest = unreadOut[unreadOut.length - 1];
+  const snippet = String(latest.text || "").slice(0, 80);
+  dom.msgBanner.innerHTML =
+    '<span class="msg-banner-icon">✉</span>' +
+    '<span class="msg-banner-text">' +
+      '<strong>New message from Coach</strong><br>' +
+      '<span class="msg-banner-snippet">' + escapeHtml(snippet) + '</span>' +
+    '</span>' +
+    '<span class="msg-banner-arrow">›</span>';
+  dom.msgBanner.classList.remove("hidden");
+}
+
+async function openThread() {
+  if (!dom.msgThreadModal) return;
+  renderThread();
+  dom.msgThreadModal.classList.remove("hidden");
+
+  // Mark all unread outbound as read
+  const unread = (state.messages || []).filter(function (m) {
+    return m.direction === "out" && !m.read;
+  });
+  for (let i = 0; i < unread.length; i++) {
+    try {
+      await callAPI({ action: "markMessageRead", token: state.token, messageId: unread[i].messageId });
+    } catch (e) {}
+  }
+  // Refresh state
+  await loadMessages();
+}
+
+function closeThread() {
+  if (dom.msgThreadModal) dom.msgThreadModal.classList.add("hidden");
+}
+
+function renderThread() {
+  if (!dom.msgThreadContent) return;
+  const msgs = (state.messages || []).slice().sort(function (a, b) {
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
+
+  let html = '<h2>Messages with Coach</h2>';
+  html += '<div class="msg-thread-list">';
+
+  if (!msgs.length) {
+    html += '<div class="msg-empty">No messages yet. Send your coach a note below.</div>';
+  } else {
+    msgs.forEach(function (m) {
+      const isFromCoach = m.direction === "out";
+      const cls = isFromCoach ? "msg-bubble msg-in" : "msg-bubble msg-out";
+      const ts = m.timestamp ? new Date(m.timestamp).toLocaleString() : "";
+      html += '<div class="' + cls + '">' +
+                '<div class="msg-text">' + escapeHtml(m.text || "") + '</div>' +
+                '<div class="msg-time">' + escapeHtml(ts) + '</div>' +
+              '</div>';
+    });
+  }
+
+  html += '</div>';
+  html += '<div class="msg-reply-form">';
+  html += '<textarea id="msgReplyInput" rows="2" placeholder="Type a message to your coach..."></textarea>';
+  html += '<button id="msgSendBtn" class="primary-btn">Send</button>';
+  html += '</div>';
+
+  dom.msgThreadContent.innerHTML = html;
+
+  const sendBtn = $("msgSendBtn");
+  if (sendBtn) sendBtn.addEventListener("click", sendReply);
+}
+
+async function sendReply() {
+  const input = $("msgReplyInput");
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) { showToast("Type a message first", true); return; }
+
+  const sendBtn = $("msgSendBtn");
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = "Sending..."; }
+
+  try {
+    const res = await callAPI({
+      action: "sendMessage",
+      token: state.token,
+      toAthlete: state.athlete,
+      text: text,
+      threadId: state.athlete + "-" + state.coachId
+    });
+    if (res && res.ok) {
+      input.value = "";
+      showToast("Sent");
+      await loadMessages();
+      renderThread();
+    } else {
+      showToast((res && res.error) || "Send failed", true);
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Send"; }
+    }
+  } catch (e) {
+    showToast("Network error", true);
+    if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = "Send"; }
+  }
+}
+
+// ============================================================
+// REST OF APP (unchanged from v6.2)
+// ============================================================
 
 function renderProfileBar() {
   const existing = $("profileBar");
@@ -1015,6 +1182,7 @@ function showWelcomePopup(fromHelpButton) {
       '<li>Tap <strong>Log</strong>. You have 3 seconds to cancel before it saves.</li>' +
       '<li>After logging, fields lock. Tap <strong>Logged ✓</strong> to edit a value.</li>' +
       '<li>Need to fix something later? Open History, tap any set to edit or delete.</li>' +
+      '<li>Your coach can send you messages — tap the ✉ icon in the header.</li>' +
       '<li>Offline? Your sets save and sync when you are back online.</li>' +
     '</ul>' +
     '<h3>Terms</h3>' +
@@ -1090,6 +1258,7 @@ async function refreshData() {
   showToast("Refreshing…");
   if (state.currentPlan) await loadLastTimesForPlan(state.currentPlan);
   if (!dom.tabHistory.classList.contains("hidden")) await loadAndRenderHistory();
+  if (state.token) await loadMessages();
 }
 
 function escapeHtml(s) {
