@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — v8 (preview from localStorage + circuit override + next-up timing)
+// TIMER PLAYER — v9 (short-interval cue handling + "Next Up" wording)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -125,7 +125,6 @@ function loadTimerFromURL() {
     if (!state.token) { showError("No session token. Log in to the athlete app first."); return; }
   }
 
-  // Preview-from-builder: check localStorage first
   if (state.isFromBuilder) {
     const stored = localStorage.getItem("previewTimer");
     if (stored) {
@@ -198,7 +197,6 @@ function expandStructure(raw) {
           const copy = Object.assign({}, innerIv);
           copy.roundNumber = r;
           copy.totalRoundCount = rounds;
-          // Block master override: if circuit is muted, children mute too
           if (circuitMuted) copy.ttsEnabled = false;
           flat.push(copy);
         });
@@ -303,21 +301,38 @@ function startTicking() {
     const iv = state.structure[state.phaseIndex];
     const ttsOn = isTtsEnabled(iv);
     const duration = parseInt(iv.duration, 10) || 0;
+    const isShort = duration <= 12;
+    const countdownOn = shouldCue("countdown3s") && ttsOn;
+    const halfwayOn = shouldCue("halfway");
+    const nextUpOn = shouldCue("nextUp");
+
+    // HALFWAY — suppressed for short intervals when countdown is on (they collide)
     const halfwayThreshold = Math.floor(duration / 2);
+    if (ttsOn && halfwayOn && !(isShort && countdownOn) && state.timeLeft === halfwayThreshold) {
+      speak("Halfway");
+    }
 
-    if (ttsOn && state.timeLeft === halfwayThreshold && shouldCue("halfway")) speak("Halfway");
-    if (ttsOn && state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) speak(String(state.timeLeft));
+    // COUNTDOWN 3-2-1
+    if (ttsOn && countdownOn && state.timeLeft <= 3 && state.timeLeft > 0) {
+      speak(String(state.timeLeft));
+    }
 
-    // NEXT-UP CUE — fires at the right moment
-    // If countdown is on: fire at 4s remaining (1s before the "3")
-    // If countdown is off: fire at 5s remaining
+    // NEXT UP CUE
+    // - Short interval (<=12s) + countdown on: fire at 5s (1s before the 3)
+    // - Short interval (<=12s) + countdown off: fire at 5s
+    // - Long interval (>12s) + countdown on: fire at 4s
+    // - Long interval (>12s) + countdown off: fire at 5s
     const nextIv = state.structure[state.phaseIndex + 1];
-    if (!state.nextUpFired && nextIv && shouldCue("nextUp") && isTtsEnabled(nextIv)) {
-      const countdownOn = shouldCue("countdown3s") && ttsOn;
-      const triggerAt = countdownOn ? 4 : 5;
+    if (!state.nextUpFired && nextIv && nextUpOn && isTtsEnabled(nextIv)) {
+      let triggerAt;
+      if (isShort) {
+        triggerAt = 5;
+      } else {
+        triggerAt = countdownOn ? 4 : 5;
+      }
       if (state.timeLeft === triggerAt) {
         state.nextUpFired = true;
-        speak("Next: " + (nextIv.name || nextIv.type));
+        speak("Next Up: " + (nextIv.name || nextIv.type));
       }
     }
 
