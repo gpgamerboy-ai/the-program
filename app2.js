@@ -1,5 +1,5 @@
 // ============================================================
-// THE PROGRAM — app2.js (v5, corrected endpoint)
+// THE PROGRAM — app2.js (v6, set re-entry lock + edit mode)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -70,43 +70,33 @@ function wireEvents() {
   dom.loginPin.addEventListener("keydown", function (e) {
     if (e.key === "Enter") handleLogin();
   });
-
   dom.loginName.addEventListener("change", function () {
     localStorage.setItem("lastAthlete", dom.loginName.value);
     dom.loginPin.focus();
   });
-
   dom.planBtns.forEach(function (btn) {
     btn.addEventListener("click", function () { selectPlan(btn.dataset.plan); });
   });
-
   dom.tabBtns.forEach(function (btn) {
     btn.addEventListener("click", function () { switchTab(btn.dataset.tab); });
   });
-
   dom.helpBtn.addEventListener("click", function () { showWelcomePopup(true); });
   dom.refreshBtn.addEventListener("click", refreshData);
   dom.logoutBtn.addEventListener("click", handleLogout);
-
   dom.downloadCsvBtn.addEventListener("click", downloadCsv);
   dom.downloadPdfBtn.addEventListener("click", downloadPdf);
-
   dom.popupHideBtn.addEventListener("click", hideWelcomePopup);
   dom.popupCloseX.addEventListener("click", hideWelcomePopup);
   dom.popupDontShowBtn.addEventListener("click", dontShowAgain);
-
   dom.lastTimeCloseX.addEventListener("click", function () {
     dom.lastTimeModal.classList.add("hidden");
   });
-
   if (dom.editModal) {
     const editCloseX = $("editModalCloseX");
     if (editCloseX) editCloseX.addEventListener("click", closeEditModal);
   }
-
   dom.histPlanFilter.addEventListener("change", renderHistory);
   dom.histDaysFilter.addEventListener("change", loadAndRenderHistory);
-
   window.addEventListener("online", flushOfflineQueue);
   window.addEventListener("offline", function () {
     dom.offlineBanner.classList.remove("hidden");
@@ -425,7 +415,7 @@ function buildSetCompare(setInfo, exerciseName, plan) {
     '</div>' +
     '<div class="compare-col">' +
       '<div class="compare-label">Today</div>' +
-      '<div class="compare-set current">' +
+      '<div class="compare-set current" id="' + idBase + '_current">' +
         '<div class="set-name">Set ' + escapeHtml(setNum) + targetNote + '</div>' +
         '<div class="set-input">' +
           '<div><label>Target</label><input type="text" value="' + escapeHtml(targetLabel) + '" readonly /></div>' +
@@ -452,7 +442,14 @@ function buildSetCompare(setInfo, exerciseName, plan) {
 
   const logBtn = wrapper.querySelector("#" + idBase + "_btn");
   logBtn.addEventListener("click", function () {
-    handleLogSet(exerciseName, plan, setInfo, idBase);
+    const currentState = logBtn.dataset.state || "idle";
+    if (currentState === "committed") {
+      unlockSetForEdit(idBase);
+    } else if (currentState === "editing") {
+      saveEditedSet(idBase, exerciseName, plan, setInfo);
+    } else {
+      handleLogSet(exerciseName, plan, setInfo, idBase);
+    }
   });
 
   if (showBarBtn) {
@@ -568,6 +565,7 @@ function handleLogSet(exerciseName, plan, setInfo, idBase) {
   };
 
   const btn = $(idBase + "_btn");
+  btn.dataset.state = "staging";
   let secondsLeft = Math.ceil(STAGE_WINDOW_MS / 1000);
   let finished = false;
 
@@ -587,7 +585,7 @@ function handleLogSet(exerciseName, plan, setInfo, idBase) {
       btn.classList.remove("staging");
       btn.disabled = true;
       btn.textContent = "...";
-      commitSet(payload, btn, exerciseName);
+      commitSet(payload, btn, exerciseName, idBase);
     }
   }, 1000);
 
@@ -600,6 +598,7 @@ function handleLogSet(exerciseName, plan, setInfo, idBase) {
     btn.removeEventListener("click", cancelHandler);
     btn.classList.remove("staging");
     btn.disabled = false;
+    btn.dataset.state = "idle";
     btn.textContent = "Log";
     showToast("Cancelled — nothing logged");
   };
@@ -607,7 +606,7 @@ function handleLogSet(exerciseName, plan, setInfo, idBase) {
   btn.addEventListener("click", cancelHandler);
 }
 
-async function commitSet(payload, btn, exerciseName) {
+async function commitSet(payload, btn, exerciseName, idBase) {
   addPendingSet(payload);
 
   if (!navigator.onLine) {
@@ -615,6 +614,7 @@ async function commitSet(payload, btn, exerciseName) {
     removePendingSet(payload);
     btn.classList.add("queued");
     btn.disabled = false;
+    btn.dataset.state = "idle";
     btn.textContent = "Queued";
     showToast("Saved offline — will sync later", "warn");
     return;
@@ -624,15 +624,9 @@ async function commitSet(payload, btn, exerciseName) {
     const res = await callAPI(Object.assign({ action: "logSet", token: state.token }, payload));
     if (res && res.ok) {
       removePendingSet(payload);
-      btn.classList.add("logged");
-      btn.disabled = false;
-      btn.textContent = "Logged ✓";
+      lockSet(idBase);
       showToast("Logged " + exerciseName + " — Set " + payload.set);
       refreshLastTimeForExercise(exerciseName);
-      setTimeout(function () {
-        btn.classList.remove("logged");
-        btn.textContent = "Log";
-      }, 2500);
       return;
     } else if (res && res.error && res.error.toLowerCase().indexOf("expired") !== -1) {
       showToast("Session expired. Please log in again.", true);
@@ -641,6 +635,7 @@ async function commitSet(payload, btn, exerciseName) {
     } else {
       showToast((res && res.error) ? res.error : "Log failed", true);
       btn.disabled = false;
+      btn.dataset.state = "idle";
       btn.textContent = "Log";
       return;
     }
@@ -649,8 +644,130 @@ async function commitSet(payload, btn, exerciseName) {
     removePendingSet(payload);
     btn.classList.add("queued");
     btn.disabled = false;
+    btn.dataset.state = "idle";
     btn.textContent = "Queued";
     showToast("Saved offline — will sync later", "warn");
+  }
+}
+
+// ============================================================
+// LOCK / UNLOCK / EDIT — set re-entry UX
+// ============================================================
+
+function lockSet(idBase) {
+  const fields = [
+    $(idBase + "_w"),
+    $(idBase + "_r"),
+    $(idBase + "_g"),
+    $(idBase + "_n")
+  ];
+  fields.forEach(function (f) {
+    if (!f) return;
+    f.readOnly = true;
+    f.disabled = true;
+    f.classList.add("locked");
+  });
+  const currentEl = $(idBase + "_current");
+  if (currentEl) currentEl.classList.add("locked");
+
+  const btn = $(idBase + "_btn");
+  if (btn) {
+    btn.dataset.state = "committed";
+    btn.classList.add("logged");
+    btn.classList.remove("staging", "queued", "editing");
+    btn.disabled = false;
+    btn.textContent = "Logged ✓";
+  }
+}
+
+function unlockSetForEdit(idBase) {
+  const fields = [
+    $(idBase + "_w"),
+    $(idBase + "_r"),
+    $(idBase + "_g"),
+    $(idBase + "_n")
+  ];
+  fields.forEach(function (f) {
+    if (!f) return;
+    f.readOnly = false;
+    f.disabled = false;
+    f.classList.remove("locked");
+  });
+  const currentEl = $(idBase + "_current");
+  if (currentEl) {
+    currentEl.classList.remove("locked");
+    currentEl.classList.add("editing");
+  }
+
+  const btn = $(idBase + "_btn");
+  if (btn) {
+    btn.dataset.state = "editing";
+    btn.classList.remove("logged");
+    btn.classList.add("editing");
+    btn.disabled = false;
+    btn.textContent = "Save";
+  }
+
+  showToast("Edit mode — make changes, then Save");
+
+  // Auto-lock if athlete navigates away or waits too long without saving
+  if (window.__editAutoLock) clearTimeout(window.__editAutoLock);
+  window.__editAutoLock = setTimeout(function () {
+    const b = $(idBase + "_btn");
+    if (b && b.dataset.state === "editing") {
+      lockSet(idBase);
+      showToast("Edit mode timed out — reverted");
+    }
+  }, 60000);
+}
+
+async function saveEditedSet(idBase, exerciseName, plan, setInfo) {
+  const weight = $(idBase + "_w").value;
+  const reps = $(idBase + "_r").value;
+  const grade = $(idBase + "_g").value;
+  const notes = $(idBase + "_n").value;
+
+  if (!weight && !reps) { showToast("Enter weight or reps first", true); return; }
+
+  const payload = {
+    pendingId: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 8),
+    athlete: state.athlete,
+    program: state.program,
+    plan: plan,
+    exercise: exerciseName,
+    set: String(setInfo.set),
+    target: String(setInfo.target || ""),
+    weight: weight,
+    reps: reps,
+    grade: grade,
+    notes: notes
+  };
+
+  const btn = $(idBase + "_btn");
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+
+  try {
+    const res = await callAPI(Object.assign({ action: "logSet", token: state.token }, payload));
+    if (res && res.ok) {
+      if (window.__editAutoLock) clearTimeout(window.__editAutoLock);
+      const currentEl = $(idBase + "_current");
+      if (currentEl) currentEl.classList.remove("editing");
+      lockSet(idBase);
+      showToast("Updated " + exerciseName + " — Set " + payload.set);
+      refreshLastTimeForExercise(exerciseName);
+    } else if (res && res.error && res.error.toLowerCase().indexOf("expired") !== -1) {
+      showToast("Session expired. Please log in again.", true);
+      handleLogout();
+    } else {
+      showToast((res && res.error) ? res.error : "Update failed", true);
+      btn.disabled = false;
+      btn.textContent = "Save";
+    }
+  } catch (e) {
+    showToast("Network error — try again", true);
+    btn.disabled = false;
+    btn.textContent = "Save";
   }
 }
 
@@ -901,8 +1018,9 @@ function showWelcomePopup(fromHelpButton) {
       '<li>Each exercise shows <strong>Last Time</strong> on the left, <strong>Today</strong> on the right.</li>' +
       '<li>Enter Weight, Reps, Grade, and Notes for each set.</li>' +
       '<li>Tap <strong>Log</strong>. You have 3 seconds to cancel before it saves.</li>' +
+      '<li>After logging, fields lock. Tap <strong>Logged ✓</strong> to edit a value.</li>' +
       '<li>Need to fix something later? Open History, tap any set to edit or delete.</li>' +
-      '<li>Offline? Your sets save and sync when you\'re back online.</li>' +
+      '<li>Offline? Your sets save and sync when you\\'re back online.</li>' +
     '</ul>' +
     '<h3>Terms</h3>' +
     '<h4>Rest</h4><p>Time between sets. Shown at the top of each lift.</p>' +
@@ -998,3 +1116,4 @@ function showToast(msg, isError) {
   else if (isError === "warn") dom.toast.classList.add("warn");
   setTimeout(function () { dom.toast.classList.add("hidden"); }, 2400);
 }
+
