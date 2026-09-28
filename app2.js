@@ -1,5 +1,5 @@
 // ============================================================
-// THE PROGRAM — app2.js (v6.1, set re-entry lock + edit mode)
+// THE PROGRAM — app2.js (v6.2, phone number removed)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -1023,7 +1023,7 @@ function showWelcomePopup(fromHelpButton) {
     '<h4>Target Rep Range</h4><p>Use loads that have you failing in this range. Adjust the weight if you fall outside.</p>' +
     '<h4>Grade</h4><p>Give the grade and explain WHY in the notes. Notes serve as cues for the next session.</p>' +
     '<h3>Coach</h3>' +
-    '<p>I am your Coach. If you need me, call: <a href="tel:9734526850">973.452.6850</a></p>';
+    '<p>Contact your coach directly if you need help. Their info is in your welcome message.</p>';
 
   if (state.sessionCount >= TUTORIAL_THRESHOLD) dom.popupDontShowBtn.classList.remove("hidden");
   else dom.popupDontShowBtn.classList.add("hidden");
