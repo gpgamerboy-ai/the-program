@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — v6 (respects per-interval TTS toggle)
+// TIMER PLAYER — v7 (start button waits for timer data)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -72,8 +72,17 @@ const dom = {
 
 document.addEventListener("DOMContentLoaded", function () {
   wireEvents();
+  setStartBtnEnabled(false, "Loading…");
   loadTimerFromURL();
 });
+
+function setStartBtnEnabled(enabled, label) {
+  if (!dom.startBtn) return;
+  dom.startBtn.disabled = !enabled;
+  dom.startBtn.style.opacity = enabled ? "1" : "0.5";
+  dom.startBtn.style.cursor = enabled ? "pointer" : "wait";
+  if (label) dom.startBtn.textContent = label;
+}
 
 function wireEvents() {
   dom.startBtn.addEventListener("click", handleStart);
@@ -132,6 +141,7 @@ async function fetchTimer() {
     const data = await res.json();
     if (!data || !data.ok) {
       showError((data && data.error) || "Could not load timer");
+      setStartBtnEnabled(false, "Error");
       return;
     }
     state.timer = data.timer;
@@ -139,8 +149,10 @@ async function fetchTimer() {
     dom.startSubtitle.textContent = state.isPreview
       ? "Preview mode — no logging"
       : "Tap START to begin";
+    setStartBtnEnabled(true, "START");
   } catch (e) {
     showError("Network error loading timer");
+    setStartBtnEnabled(false, "Error");
   }
 }
 
@@ -182,6 +194,11 @@ function isTtsEnabled(iv) {
 }
 
 function handleStart() {
+  if (!state.timer) {
+    showError("Timer is still loading. Please wait a moment and try again.");
+    return;
+  }
+
   state.hasStarted = true;
   state.startTime = Date.now();
 
