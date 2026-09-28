@@ -1020,7 +1020,7 @@ function showWelcomePopup(fromHelpButton) {
       '<li>Tap <strong>Log</strong>. You have 3 seconds to cancel before it saves.</li>' +
       '<li>After logging, fields lock. Tap <strong>Logged ✓</strong> to edit a value.</li>' +
       '<li>Need to fix something later? Open History, tap any set to edit or delete.</li>' +
-      '<li>Offline? Your sets save and sync when you\\'re back online.</li>' +
+      '<li>Offline? Your sets save and sync when you\'re back online.</li>' +
     '</ul>' +
     '<h3>Terms</h3>' +
     '<h4>Rest</h4><p>Time between sets. Shown at the top of each lift.</p>' +
