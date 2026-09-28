@@ -95,7 +95,6 @@
       display: flex; gap: 8px; align-items: center;
     }
 
-    /* MESSAGING */
     .conversation-list {
       display: flex; flex-direction: column; gap: 8px;
     }
@@ -206,7 +205,6 @@
 </head>
 <body>
 
-  <!-- KEY GATE -->
   <section id="keyGate" class="key-gate">
     <h2>Coach Access</h2>
     <input id="coachKeyInput" type="password" placeholder="Enter coach key" />
@@ -214,12 +212,12 @@
     <div id="coachKeyErr" class="err"></div>
   </section>
 
-  <!-- COACH APP -->
   <section id="coachApp" class="hidden">
 
     <header class="coach-header">
       <h1>Coach View</h1>
       <div class="header-actions-row">
+        <a href="program-creator.html" class="icon-btn" title="Program Creator" style="text-decoration:none;">📝</a>
         <a href="timer-builder.html" class="icon-btn" title="Timer Builder" style="text-decoration:none;">⏱</a>
         <button id="coachRefreshBtn" class="icon-btn" title="Refresh">↻</button>
         <button id="coachLogoutBtn" class="icon-btn" title="Sign out">⏻</button>
@@ -228,13 +226,11 @@
 
     <main class="coach-main">
 
-      <!-- ATHLETES -->
       <section class="coach-section">
         <h2>Athletes</h2>
         <div id="athleteGrid" class="athlete-grid"></div>
       </section>
 
-      <!-- MESSAGES -->
       <section class="coach-section">
         <div class="section-head-row">
           <h2>Messages</h2>
@@ -245,7 +241,6 @@
         </div>
       </section>
 
-      <!-- RECENT LOGS -->
       <section class="coach-section">
         <h2>Recent Logs</h2>
         <div class="filter-row">
@@ -297,7 +292,6 @@
     </main>
   </section>
 
-  <!-- THREAD MODAL -->
   <div id="threadModal" class="popup hidden">
     <div class="popup-card wide">
       <button id="threadModalClose" class="popup-x" aria-label="Close">×</button>
@@ -305,7 +299,6 @@
     </div>
   </div>
 
-  <!-- COMPOSE MODAL -->
   <div id="composeModal" class="popup hidden">
     <div class="popup-card">
       <button id="composeModalClose" class="popup-x" aria-label="Close">×</button>
@@ -324,6 +317,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="coach.js?v=6"></script>
+  <script src="coach.js?v=7"></script>
 </body>
 </html>
