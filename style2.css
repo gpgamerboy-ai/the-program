@@ -726,7 +726,6 @@ a:hover { text-decoration: underline; }
 
 .popup-actions button { flex: 1; }
 
-/* Last Time modal — side-by-side sessions */
 .lt-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -813,7 +812,7 @@ a:hover { text-decoration: underline; }
 .toast.warn { background: var(--warn); color: #1a1a1a; }
 
 /* ============================================================
-   RESPONSIVE — slightly wider on larger phones
+   RESPONSIVE
    ============================================================ */
 
 @media (min-width: 420px) {
@@ -825,7 +824,6 @@ a:hover { text-decoration: underline; }
   .exercise-card { padding: 20px; }
   .set-compare { gap: 16px; }
 }
-
 
 /* ============================================================
    v3 additions
@@ -915,4 +913,44 @@ a:hover { text-decoration: underline; }
   flex: 1;
 }
 
+/* ============================================================
+   v6 additions — set lock + edit mode
+   ============================================================ */
 
+.set-input input.locked,
+.set-input select.locked {
+  background: #12151a;
+  color: #6b7280;
+  border-color: #1f242e;
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+.compare-set.current.locked {
+  border-left-color: var(--success);
+  background: rgba(31, 122, 61, 0.08);
+}
+
+.compare-set.current.editing {
+  border-left-color: var(--warn);
+  background: rgba(210, 154, 31, 0.08);
+  box-shadow: 0 0 0 2px rgba(210, 154, 31, 0.2);
+}
+
+.log-btn.logged {
+  background: var(--success);
+  cursor: pointer;
+}
+
+.log-btn.logged:hover {
+  background: #175d2f;
+}
+
+.log-btn.editing {
+  background: var(--warn);
+  color: #1a1a1a;
+}
+
+.log-btn.editing:hover {
+  background: #b98414;
+}
