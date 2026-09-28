@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f1115" />
   <title>Coach View — Workout Tracker</title>
-  <link rel="stylesheet" href="style2.css" />
+  <link rel="stylesheet" href="style2.css?v=7" />
   <style>
     .coach-header {
       position: sticky; top: 0; z-index: 50;
@@ -20,6 +20,11 @@
       font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;
       color: var(--text-dim); margin: 0 0 12px;
     }
+    .section-head-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .section-head-row h2 { margin: 0; }
     .filter-row {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 8px; margin-bottom: 16px;
@@ -85,21 +90,123 @@
       color: #fff; cursor: pointer;
     }
     .key-gate .err { color: var(--danger); font-size: 13px; margin-top: 8px; }
-    .log-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-    .log-filters button {
-      padding: 6px 12px; font-size: 12px; font-weight: 600;
-      border-radius: 999px; border: 1px solid var(--border-strong);
-      background: var(--bg-elevated); color: var(--text); cursor: pointer;
-    }
-    .log-filters button.active {
-      background: var(--accent); border-color: var(--accent); color: #fff;
-    }
     .table-wrap { overflow-x: auto; }
+    .header-actions-row {
+      display: flex; gap: 8px; align-items: center;
+    }
+
+    /* MESSAGING */
+    .conversation-list {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .conversation-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .conversation-row:hover { border-color: var(--accent); }
+    .conversation-row.unread { border-left: 3px solid var(--accent); }
+    .conv-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; flex-shrink: 0;
+    }
+    .conv-info { flex: 1; min-width: 0; }
+    .conv-name { font-size: 14px; font-weight: 700; color: var(--text-bright); }
+    .conv-snippet {
+      font-size: 12px; color: var(--text-dim);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+    .conv-meta {
+      display: flex; flex-direction: column; align-items: flex-end;
+      gap: 4px; flex-shrink: 0;
+    }
+    .conv-time { font-size: 11px; color: var(--text-dim); }
+    .conv-badge {
+      background: var(--danger); color: #fff;
+      font-size: 10px; font-weight: 700;
+      min-width: 18px; height: 18px;
+      border-radius: 999px; padding: 0 5px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .conv-empty {
+      text-align: center; padding: 32px 16px;
+      color: var(--text-dim); font-size: 14px;
+      background: var(--bg-card);
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius);
+    }
+
+    .msg-thread-list {
+      max-height: 55vh; overflow-y: auto;
+      padding: 8px 0; margin: 12px 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .msg-bubble {
+      max-width: 80%; padding: 10px 14px;
+      border-radius: 12px; font-size: 14px;
+      line-height: 1.4; word-wrap: break-word;
+    }
+    .msg-in {
+      align-self: flex-start;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+    .msg-out {
+      align-self: flex-end;
+      background: var(--accent); color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .msg-text { margin-bottom: 4px; }
+    .msg-time { font-size: 10px; opacity: 0.65; text-align: right; }
+    .msg-thread-meta {
+      font-size: 13px; color: var(--text-dim); margin-bottom: 8px;
+    }
+    .msg-reply-form {
+      display: flex; gap: 8px; align-items: flex-end; margin-top: 12px;
+    }
+    .msg-reply-form textarea {
+      flex: 1; padding: 10px; font-size: 14px;
+      border-radius: 8px; border: 1px solid var(--border-strong);
+      background: var(--bg-input); color: var(--text);
+      font-family: inherit; resize: vertical; min-height: 44px;
+    }
+    .msg-reply-form textarea:focus { outline: none; border-color: var(--accent); }
+    .msg-reply-form .primary-btn {
+      width: auto; margin: 0; padding: 10px 20px; font-size: 14px;
+    }
+    .compose-field {
+      margin-bottom: 12px;
+    }
+    .compose-field label {
+      display: block; font-size: 11px; color: var(--text-dim);
+      text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;
+    }
+    .compose-field select,
+    .compose-field textarea {
+      width: 100%; padding: 10px; font-size: 14px;
+      border-radius: 8px; border: 1px solid var(--border-strong);
+      background: var(--bg-input); color: var(--text);
+      font-family: inherit;
+      appearance: none;
+    }
+    .compose-field select:focus,
+    .compose-field textarea:focus { outline: none; border-color: var(--accent); }
+    .compose-field textarea { resize: vertical; min-height: 100px; }
   </style>
 </head>
 <body>
 
-  <!-- Key gate -->
+  <!-- KEY GATE -->
   <section id="keyGate" class="key-gate">
     <h2>Coach Access</h2>
     <input id="coachKeyInput" type="password" placeholder="Enter coach key" />
@@ -107,23 +214,38 @@
     <div id="coachKeyErr" class="err"></div>
   </section>
 
-  <!-- Coach view -->
-   <div class="header-right">
-    <a href="timer-builder.html" class="icon-btn" title="Timer Builder" style="text-decoration:none;">⏱</a>
-    <button id="coachRefreshBtn" class="icon-btn" title="Refresh">↻</button>
-    <button id="coachLogoutBtn" class="icon-btn" title="Sign out">⏻</button>
-  </div>
-  
+  <!-- COACH APP -->
+  <section id="coachApp" class="hidden">
+
+    <header class="coach-header">
+      <h1>Coach View</h1>
+      <div class="header-actions-row">
+        <a href="timer-builder.html" class="icon-btn" title="Timer Builder" style="text-decoration:none;">⏱</a>
+        <button id="coachRefreshBtn" class="icon-btn" title="Refresh">↻</button>
+        <button id="coachLogoutBtn" class="icon-btn" title="Sign out">⏻</button>
+      </div>
+    </header>
 
     <main class="coach-main">
 
-      <!-- Athletes section -->
+      <!-- ATHLETES -->
       <section class="coach-section">
         <h2>Athletes</h2>
         <div id="athleteGrid" class="athlete-grid"></div>
       </section>
 
-      <!-- Logs section -->
+      <!-- MESSAGES -->
+      <section class="coach-section">
+        <div class="section-head-row">
+          <h2>Messages</h2>
+          <button id="newMessageBtn" class="secondary-btn small">+ New Message</button>
+        </div>
+        <div id="conversationList" class="conversation-list">
+          <div class="conv-empty">Loading conversations…</div>
+        </div>
+      </section>
+
+      <!-- RECENT LOGS -->
       <section class="coach-section">
         <h2>Recent Logs</h2>
         <div class="filter-row">
@@ -175,8 +297,33 @@
     </main>
   </section>
 
+  <!-- THREAD MODAL -->
+  <div id="threadModal" class="popup hidden">
+    <div class="popup-card wide">
+      <button id="threadModalClose" class="popup-x" aria-label="Close">×</button>
+      <div id="threadModalContent"></div>
+    </div>
+  </div>
+
+  <!-- COMPOSE MODAL -->
+  <div id="composeModal" class="popup hidden">
+    <div class="popup-card">
+      <button id="composeModalClose" class="popup-x" aria-label="Close">×</button>
+      <h2>New Message</h2>
+      <div class="compose-field">
+        <label for="composeAthlete">To</label>
+        <select id="composeAthlete"></select>
+      </div>
+      <div class="compose-field">
+        <label for="composeText">Message</label>
+        <textarea id="composeText" rows="5" placeholder="Type a message..."></textarea>
+      </div>
+      <button id="composeSendBtn" class="primary-btn">Send Message</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
-  <script src="coach.js?v=4"></script>
+  <script src="coach.js?v=5"></script>
 </body>
 </html>
