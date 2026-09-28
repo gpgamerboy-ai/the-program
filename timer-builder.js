@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER BUILDER — v7 (TTS per-interval toggle)
+// TIMER BUILDER — v8 (preview in memory + circuit TTS + inner toggles)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -232,14 +232,37 @@ function backToList() {
   loadTimers();
 }
 
+// ============================================================
+// PREVIEW — writes current unsaved structure to localStorage
+// ============================================================
+
 function previewTimer() {
   const t = state.editingTimer;
-  if (!t.timerId) {
-    showToast("Save the timer first, then preview", true);
-    return;
-  }
-  const url = "timer.html?id=" + encodeURIComponent(t.timerId) +
-    "&preview=1&key=" + encodeURIComponent(state.coachKey);
+  if (!t) return;
+
+  const previewPayload = {
+    timerId: t.timerId || "__preview__",
+    timerName: t.timerName || "Untitled Timer",
+    timerType: $("timerType").value || t.timerType || "intervals",
+    structure: JSON.stringify(t.structure || []),
+    ttsTitle: $("ttsTitle").value || "",
+    ttsCues: JSON.stringify({
+      halfway: $("cueHalfway").checked,
+      countdown3s: $("cueCountdown").checked,
+      nextUp: $("cueNextUp").checked
+    }),
+    totalDuration: computeTotalDuration(t.structure || []),
+    requiresInput: t.requiresInput || false,
+    inputPrompts: JSON.stringify(t.inputPrompts || []),
+    musicTrack: t.musicTrack || "",
+    notes: $("timerNotes").value || ""
+  };
+
+  localStorage.setItem("previewTimer", JSON.stringify(previewPayload));
+
+  const url = "timer.html?id=" + encodeURIComponent(previewPayload.timerId) +
+    "&preview=1&key=" + encodeURIComponent(state.coachKey) +
+    "&fromBuilder=1";
   window.open(url, "_blank");
 }
 
@@ -287,12 +310,13 @@ function renderIntervalRow(iv, index) {
 
   const color = iv.color || (iv.type === "circuit" ? "#2e6cf6" : "#b8f52c");
   const isCircuit = iv.type === "circuit";
+  const ttsOff = iv.ttsEnabled === false;
 
   const name = isCircuit
     ? (iv.name || "Circuit")
     : (iv.name || iv.type || "Interval");
 
-  const ttsLabel = (iv.ttsEnabled === false && !isCircuit) ? ' <span style="color:#6b7280;font-size:11px;">· mute</span>' : '';
+  const ttsLabel = ttsOff ? ' <span style="color:#6b7280;font-size:11px;">· mute</span>' : '';
 
   const meta = isCircuit
     ? iv.rounds + " rounds × " + (iv.intervals || []).length + " intervals"
@@ -517,12 +541,14 @@ function openNewCircuitModal() {
     name: "",
     rounds: 8,
     intervals: [],
-    afterCircuit: null
+    afterCircuit: null,
+    ttsEnabled: true
   };
   $("circuitName").value = "";
   $("circuitRounds").value = 8;
   $("circuitAfterEach").value = "";
   $("circuitAfterCircuit").value = "";
+  $("circuitTtsEnabled").checked = true;
   renderCircuitInnerList();
   $("circuitModal").classList.remove("hidden");
 }
@@ -535,12 +561,14 @@ function openCircuitModal(index) {
     name: c.name || "",
     rounds: c.rounds || 1,
     intervals: c.intervals || [],
-    afterCircuit: c.afterCircuit || null
+    afterCircuit: c.afterCircuit || null,
+    ttsEnabled: c.ttsEnabled !== false
   };
   $("circuitName").value = c.name || "";
   $("circuitRounds").value = c.rounds || 1;
   $("circuitAfterEach").value = c.afterEach ? c.afterEach.duration : "";
   $("circuitAfterCircuit").value = c.afterCircuit ? c.afterCircuit.duration : "";
+  $("circuitTtsEnabled").checked = c.ttsEnabled !== false;
   renderCircuitInnerList();
   $("circuitModal").classList.remove("hidden");
 }
@@ -565,13 +593,23 @@ function renderCircuitInnerList() {
     const row = document.createElement("div");
     row.className = "interval-row small";
     const color = iv.color || "#b8f52c";
+    const muted = iv.ttsEnabled === false;
+    const muteIcon = muted ? "🔇" : "🔊";
+
     row.innerHTML =
       '<div class="interval-swatch small" style="background:' + color + '"></div>' +
       '<div class="interval-info">' +
         '<div class="interval-name-row">' + escapeHtml(iv.name || iv.type) + '</div>' +
         '<div class="interval-meta">' + formatDuration(iv.duration || 0) + '</div>' +
       '</div>' +
+      '<button class="interval-tts-btn" data-idx="' + i + '" title="Toggle TTS for this interval">' + muteIcon + '</button>' +
       '<button class="interval-delete-btn" data-idx="' + i + '">×</button>';
+
+    row.querySelector(".interval-tts-btn").addEventListener("click", function (e) {
+      e.stopPropagation();
+      c.intervals[i].ttsEnabled = c.intervals[i].ttsEnabled === false ? true : false;
+      renderCircuitInnerList();
+    });
 
     row.querySelector(".interval-delete-btn").addEventListener("click", function (e) {
       e.stopPropagation();
@@ -610,6 +648,7 @@ function saveCircuitFromModal() {
   const rounds = parseInt($("circuitRounds").value, 10) || 1;
   const afterEach = parseInt($("circuitAfterEach").value, 10) || 0;
   const afterCircuit = parseInt($("circuitAfterCircuit").value, 10) || 0;
+  const ttsEnabled = $("circuitTtsEnabled").checked;
 
   if (!name) { showToast("Give the circuit a name", true); return; }
   if (!c.intervals.length) { showToast("Add at least one inner interval", true); return; }
@@ -618,7 +657,8 @@ function saveCircuitFromModal() {
     type: "circuit",
     name: name,
     rounds: rounds,
-    intervals: c.intervals
+    intervals: c.intervals,
+    ttsEnabled: ttsEnabled
   };
 
   if (afterEach > 0) {
