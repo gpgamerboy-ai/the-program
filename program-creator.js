@@ -1,5 +1,5 @@
 // ============================================================
-// PROGRAM CREATOR — program-creator.js v2 (pipe delimiter)
+// PROGRAM CREATOR — program-creator.js v3 (delimiter normalization)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -77,7 +77,32 @@ function showApp() {
 }
 
 // ============================================================
-// PROMPT — uses pipe delimiter
+// DELIMITER NORMALIZATION — handles lookalike characters
+// ============================================================
+
+function normalizeDelimiters(line) {
+  return String(line)
+    .replace(/¦/g, "|")   // broken bar U+00A6
+    .replace(/｜/g, "|")  // fullwidth vertical line U+FF5C
+    .replace(/│/g, "|")   // box drawings light vertical U+2502
+    .replace(/┃/g, "|")   // box drawings heavy vertical U+2503
+    .replace(/❘/g, "|")   // light vertical bar U+2758
+    .replace(/❙/g, "|")   // medium vertical bar U+2759
+    .replace(/❚/g, "|")   // heavy vertical bar U+275A
+    .replace(/⁞/g, "|")   // vertical four dots U+205E
+    .replace(/︱/g, "|")   // presentation form for vertical hyphen U+FE31
+    .replace(/︳/g, "|");  // presentation form for vertical wavy low line U+FE33
+}
+
+function parseRow(line) {
+  const normalized = normalizeDelimiters(line);
+  const pipeCols = normalized.split("|");
+  const tabCols = normalized.split("\t");
+  return pipeCols.length >= tabCols.length ? pipeCols : tabCols;
+}
+
+// ============================================================
+// PROMPT
 // ============================================================
 
 function renderPrompt() {
@@ -86,9 +111,9 @@ function renderPrompt() {
     "",
     "Return ONLY the rows. No headers. No markdown. No code fences. Plain text.",
     "",
-    "Each row must have EXACTLY 13 values, separated by the pipe character |",
+    "Each row must have EXACTLY 13 values, separated by the ASCII pipe character |",
     "Always include all 13 values. If a value is empty, leave it blank between two pipes.",
-    "The line must end with three pipes if the last three columns are empty.",
+    "The line must end with the correct number of trailing pipes if the last columns are empty.",
     "",
     "Columns in order:",
     "",
@@ -108,12 +133,14 @@ function renderPrompt() {
     "12. LoadLogic     — auto-load rule (or blank)",
     "13. Notes         — extra notes for this set (or blank)",
     "",
-    "Example rows (each line has 13 pipes / 14 segments separated by pipes):",
+    "Example rows (13 values per line, so 12 internal pipes plus trailing empties):",
     "Lopez Fall|1|A|Back Squat|main|2min|2/1/2/0|1|reps|8-10|2 in tank||",
     "Lopez Fall|1|A|Back Squat|main|2min|2/1/2/0|2|reps|8-10|2 in tank||",
     "Lopez Fall|1|A|Romanian Deadlift|support|90s||1|reps|10-12|feel it out||",
     "",
-    "Verify each line has exactly 13 pipe separators before returning. Count them.",
+    "Use the ASCII pipe character (Shift+Backslash on US keyboards, character code 124).",
+    "Do NOT use broken bars, fullwidth pipes, or box-drawing characters.",
+    "Count your pipes: each line must have exactly 12 pipe characters for 13 values.",
     "",
     "Now generate a program for: [INSERT YOUR REQUEST HERE]"
   ].join("\n");
@@ -133,7 +160,7 @@ async function copyPrompt() {
 }
 
 // ============================================================
-// PARSE + VALIDATE — accepts pipe or tab, pads to 13
+// PARSE + VALIDATE
 // ============================================================
 
 function handleValidate() {
@@ -147,15 +174,11 @@ function handleValidate() {
   state.rows = [];
   state.issues = [];
 
-  // Detect delimiter: prefer pipe if line 1 has any pipe
-  const firstLine = lines[0] || "";
-  const usePipe = firstLine.indexOf("|") !== -1;
-
   lines.forEach(function (line, i) {
-    const cols = usePipe ? line.split("|") : line.split("\t");
-    const row = { lineNum: i + 1, cols: cols, errors: [], warnings: [] };
+    const cols = parseRow(line);
+    const row = { lineNum: i + 1, cols: [], errors: [], warnings: [] };
 
-    // Trim each col
+    // Trim each
     row.cols = cols.map(function (c) { return String(c).trim(); });
 
     // Pad to 13 if short
@@ -165,12 +188,10 @@ function handleValidate() {
       while (row.cols.length < COLS) row.cols.push("");
     }
 
-    // Too many columns — hard error
     if (row.cols.length > COLS) {
       row.errors.push("Found " + row.cols.length + " columns (max 13)");
     }
 
-    // Required fields
     const program = row.cols[0];
     const day = row.cols[2];
     const exercise = row.cols[3];
@@ -327,3 +348,4 @@ function showToast(msg, isError) {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(function () { t.classList.add("hidden"); }, 2800);
 }
+
