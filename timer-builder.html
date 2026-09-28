@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f1115" />
   <title>Timer Builder</title>
-  <link rel="stylesheet" href="timer-builder.css?v=3" />
+  <link rel="stylesheet" href="timer-builder.css?v=4" />
 </head>
 <body>
 
@@ -145,6 +145,14 @@
       <div id="colorPicker" class="color-picker"></div>
       <input id="ivColorCustom" type="text" placeholder="#b8f52c" />
 
+      <label class="form-label">Text-to-Speech</label>
+      <div class="toggle-row">
+        <label class="toggle-label">
+          <input id="ivTtsEnabled" type="checkbox" checked />
+          <span>Speak this interval's name aloud</span>
+        </label>
+      </div>
+
       <button id="intervalSave" class="primary-btn">Save Interval</button>
     </div>
   </div>
@@ -181,6 +189,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="timer-builder.js?v=4"></script>
+  <script src="timer-builder.js?v=5"></script>
 </body>
 </html>
