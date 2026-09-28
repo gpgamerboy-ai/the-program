@@ -1,5 +1,5 @@
 // ============================================================
-// COACH VIEW — coach.js (v3, corrected endpoint)
+// COACH VIEW — coach.js v4 (messaging)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -10,7 +10,9 @@ const $ = function (id) { return document.getElementById(id); };
 let state = {
   key: null,
   athletes: [],
-  logs: []
+  logs: [],
+  conversations: [],
+  currentThread: null
 };
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -34,6 +36,11 @@ function wireEvents() {
   $("filterAthlete").addEventListener("change", loadLogs);
   $("filterPlan").addEventListener("change", loadLogs);
   $("filterDays").addEventListener("change", loadLogs);
+
+  $("newMessageBtn").addEventListener("click", openCompose);
+  $("composeModalClose").addEventListener("click", closeCompose);
+  $("composeSendBtn").addEventListener("click", sendComposedMessage);
+  $("threadModalClose").addEventListener("click", closeThread);
 }
 
 async function handleKeySubmit() {
@@ -62,6 +69,8 @@ function handleLogout() {
   state.key = null;
   state.athletes = [];
   state.logs = [];
+  state.conversations = [];
+  state.currentThread = null;
   $("coachApp").classList.add("hidden");
   $("keyGate").classList.remove("hidden");
   $("coachKeyInput").value = "";
@@ -75,6 +84,7 @@ function showCoachApp() {
 async function loadAll() {
   await loadAthletes();
   await loadLogs();
+  await loadConversations();
 }
 
 async function loadAthletes() {
@@ -87,6 +97,7 @@ async function loadAthletes() {
     state.athletes = res.athletes || [];
     renderAthletes();
     populateAthleteFilter();
+    populateComposeAthleteList();
   } catch (e) {
     showToast("Network error: " + e.message, true);
   }
@@ -113,6 +124,206 @@ async function loadLogs() {
     renderLogs();
   } catch (e) {
     showToast("Network error: " + e.message, true);
+  }
+}
+
+async function loadConversations() {
+  try {
+    const res = await callAPI({ action: "listConversations", key: state.key });
+    if (!res || !res.ok) {
+      renderConversations([]);
+      return;
+    }
+    state.conversations = res.conversations || [];
+    renderConversations(state.conversations);
+  } catch (e) {
+    renderConversations([]);
+  }
+}
+
+function renderConversations(list) {
+  const container = $("conversationList");
+  if (!list.length) {
+    container.innerHTML = '<div class="conv-empty">No conversations yet. Tap "+ New Message" to start.</div>';
+    return;
+  }
+  container.innerHTML = "";
+  list.forEach(function (c) {
+    const row = document.createElement("div");
+    row.className = "conversation-row" + (c.unreadCount > 0 ? " unread" : "");
+    const initial = (c.athlete || "?").charAt(0).toUpperCase();
+    row.innerHTML =
+      '<div class="conv-avatar">' + escapeHtml(initial) + '</div>' +
+      '<div class="conv-info">' +
+        '<div class="conv-name">' + escapeHtml(c.athlete || "") + '</div>' +
+        '<div class="conv-snippet">' +
+          (c.lastDirection === "in" ? "📩 " : "📤 ") +
+          escapeHtml(c.lastText || "") +
+        '</div>' +
+      '</div>' +
+      '<div class="conv-meta">' +
+        '<div class="conv-time">' + formatTimestamp(c.lastTimestamp) + '</div>' +
+        (c.unreadCount > 0 ? '<div class="conv-badge">' + c.unreadCount + '</div>' : '') +
+      '</div>';
+
+    row.addEventListener("click", function () {
+      openThread(c.threadId, c.athlete);
+    });
+
+    container.appendChild(row);
+  });
+}
+
+async function openThread(threadId, athleteName) {
+  state.currentThread = { threadId: threadId, athlete: athleteName };
+  $("threadModal").classList.remove("hidden");
+  $("threadModalContent").innerHTML = '<h2>Loading…</h2>';
+
+  try {
+    const res = await callAPI({
+      action: "getThread",
+      key: state.key,
+      threadId: threadId
+    });
+    if (!res || !res.ok) {
+      $("threadModalContent").innerHTML = '<h2>' + escapeHtml(athleteName) + '</h2><p style="color:#9aa3b0;">Could not load thread.</p>';
+      return;
+    }
+    renderThread(res.messages || [], athleteName);
+  } catch (e) {
+    $("threadModalContent").innerHTML = '<h2>' + escapeHtml(athleteName) + '</h2><p style="color:#9aa3b0;">Network error.</p>';
+  }
+}
+
+function renderThread(messages, athleteName) {
+  const sorted = messages.slice().sort(function (a, b) {
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
+
+  let html = '<h2>Conversation with ' + escapeHtml(athleteName) + '</h2>';
+  html += '<div class="msg-thread-meta">' + sorted.length + ' message' + (sorted.length === 1 ? '' : 's') + '</div>';
+  html += '<div class="msg-thread-list">';
+
+  if (!sorted.length) {
+    html += '<div class="conv-empty">No messages yet.</div>';
+  } else {
+    sorted.forEach(function (m) {
+      const isFromCoach = m.direction === "out";
+      const cls = isFromCoach ? "msg-bubble msg-out" : "msg-bubble msg-in";
+      const ts = m.timestamp ? new Date(m.timestamp).toLocaleString() : "";
+      html += '<div class="' + cls + '">' +
+                '<div class="msg-text">' + escapeHtml(m.text || "") + '</div>' +
+                '<div class="msg-time">' + escapeHtml(ts) + '</div>' +
+              '</div>';
+    });
+  }
+
+  html += '</div>';
+  html += '<div class="msg-reply-form">';
+  html += '<textarea id="threadReplyInput" rows="2" placeholder="Type your reply..."></textarea>';
+  html += '<button id="threadReplyBtn" class="primary-btn">Send</button>';
+  html += '</div>';
+
+  $("threadModalContent").innerHTML = html;
+
+  const replyBtn = $("threadReplyBtn");
+  if (replyBtn) replyBtn.addEventListener("click", function () { sendThreadReply(athleteName); });
+}
+
+async function sendThreadReply(athleteName) {
+  const input = $("threadReplyInput");
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) { showToast("Type a message first", true); return; }
+
+  const btn = $("threadReplyBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Sending..."; }
+
+  try {
+    const res = await callAPI({
+      action: "sendMessage",
+      key: state.key,
+      athlete: athleteName,
+      text: text,
+      threadId: state.currentThread.threadId
+    });
+    if (res && res.ok) {
+      input.value = "";
+      showToast("Sent");
+      await openThread(state.currentThread.threadId, athleteName);
+      await loadConversations();
+    } else {
+      showToast((res && res.error) || "Send failed", true);
+      if (btn) { btn.disabled = false; btn.textContent = "Send"; }
+    }
+  } catch (e) {
+    showToast("Network error", true);
+    if (btn) { btn.disabled = false; btn.textContent = "Send"; }
+  }
+}
+
+function closeThread() {
+  $("threadModal").classList.add("hidden");
+  state.currentThread = null;
+}
+
+function openCompose() {
+  $("composeModal").classList.remove("hidden");
+  $("composeText").value = "";
+  $("composeAthlete").value = "";
+}
+
+function closeCompose() {
+  $("composeModal").classList.add("hidden");
+}
+
+function populateComposeAthleteList() {
+  const sel = $("composeAthlete");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— pick an athlete —</option>';
+  state.athletes.forEach(function (a) {
+    if (!a.active) return;
+    const opt = document.createElement("option");
+    opt.value = a.name;
+    opt.textContent = a.name;
+    sel.appendChild(opt);
+  });
+}
+
+async function sendComposedMessage() {
+  const athlete = $("composeAthlete").value;
+  const text = $("composeText").value.trim();
+
+  if (!athlete) { showToast("Pick an athlete", true); return; }
+  if (!text) { showToast("Type a message", true); return; }
+
+  const btn = $("composeSendBtn");
+  btn.disabled = true;
+  btn.textContent = "Sending...";
+
+  const threadId = athlete + "-coach-malcolm";
+
+  try {
+    const res = await callAPI({
+      action: "sendMessage",
+      key: state.key,
+      athlete: athlete,
+      text: text,
+      threadId: threadId
+    });
+    if (res && res.ok) {
+      showToast("Message sent to " + athlete);
+      closeCompose();
+      await loadConversations();
+    } else {
+      showToast((res && res.error) || "Send failed", true);
+      btn.disabled = false;
+      btn.textContent = "Send Message";
+    }
+  } catch (e) {
+    showToast("Network error", true);
+    btn.disabled = false;
+    btn.textContent = "Send Message";
   }
 }
 
