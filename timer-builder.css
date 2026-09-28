@@ -37,10 +37,7 @@ html, body {
 
 a { color: var(--accent); text-decoration: none; }
 
-/* ============================================================
-   KEY GATE
-   ============================================================ */
-
+/* KEY GATE */
 .key-gate {
   min-height: 100vh;
   display: flex;
@@ -48,7 +45,6 @@ a { color: var(--accent); text-decoration: none; }
   justify-content: center;
   padding: 24px 16px;
 }
-
 .key-card {
   width: 100%;
   max-width: 400px;
@@ -57,20 +53,8 @@ a { color: var(--accent); text-decoration: none; }
   border-radius: var(--radius-lg);
   padding: 28px 22px;
 }
-
-.key-card h1 {
-  margin: 0 0 4px;
-  font-size: 22px;
-  text-align: center;
-}
-
-.key-card .sub {
-  margin: 0 0 24px;
-  color: var(--text-dim);
-  font-size: 14px;
-  text-align: center;
-}
-
+.key-card h1 { margin: 0 0 4px; font-size: 22px; text-align: center; }
+.key-card .sub { margin: 0 0 24px; color: var(--text-dim); font-size: 14px; text-align: center; }
 .key-card input {
   width: 100%;
   padding: 14px 12px;
@@ -80,21 +64,10 @@ a { color: var(--accent); text-decoration: none; }
   background: var(--bg-input);
   color: var(--text);
 }
-
 .key-card input:focus { outline: none; border-color: var(--accent); }
+.error-text { color: var(--danger); font-size: 13px; text-align: center; margin-top: 12px; min-height: 16px; }
 
-.error-text {
-  color: var(--danger);
-  font-size: 13px;
-  text-align: center;
-  margin-top: 12px;
-  min-height: 16px;
-}
-
-/* ============================================================
-   BUTTONS
-   ============================================================ */
-
+/* BUTTONS */
 .primary-btn {
   width: 100%;
   padding: 14px;
@@ -107,14 +80,7 @@ a { color: var(--accent); text-decoration: none; }
   cursor: pointer;
   margin-top: 16px;
 }
-
-.primary-btn.small {
-  width: auto;
-  padding: 8px 16px;
-  font-size: 13px;
-  margin-top: 0;
-}
-
+.primary-btn.small { width: auto; padding: 8px 16px; font-size: 13px; margin-top: 0; }
 .primary-btn:active { opacity: 0.8; }
 .primary-btn:disabled { opacity: 0.6; }
 
@@ -128,16 +94,8 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--text);
   cursor: pointer;
 }
-
-.secondary-btn.small {
-  padding: 6px 12px;
-  font-size: 12px;
-}
-
-.secondary-btn:active {
-  border-color: var(--accent);
-  color: var(--accent);
-}
+.secondary-btn.small { padding: 6px 12px; font-size: 12px; }
+.secondary-btn:active { border-color: var(--accent); color: var(--accent); }
 
 .icon-btn {
   width: 40px;
@@ -152,18 +110,10 @@ a { color: var(--accent); text-decoration: none; }
   justify-content: center;
   cursor: pointer;
 }
+.icon-btn:active { background: var(--accent); border-color: var(--accent); }
 
-.icon-btn:active {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-
-/* ============================================================
-   APP HEADER
-   ============================================================ */
-
+/* APP HEADER */
 .app-view { min-height: 100vh; }
-
 .app-header {
   display: flex;
   align-items: center;
@@ -176,34 +126,12 @@ a { color: var(--accent); text-decoration: none; }
   top: 0;
   z-index: 20;
 }
-
-.app-header h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  flex: 1;
-  text-align: center;
-}
-
+.app-header h1 { margin: 0; font-size: 18px; font-weight: 700; flex: 1; text-align: center; }
 .app-header h1:first-child { text-align: left; }
+.header-actions { display: flex; gap: 8px; align-items: center; }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-/* ============================================================
-   TIMER LIST
-   ============================================================ */
-
-.timer-list {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 16px;
-  padding-bottom: 60px;
-}
-
+/* TIMER LIST */
+.timer-list { max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: 60px; }
 .timer-card {
   display: flex;
   align-items: center;
@@ -216,11 +144,8 @@ a { color: var(--accent); text-decoration: none; }
   margin-bottom: 10px;
   cursor: pointer;
 }
-
 .timer-card:active { border-color: var(--accent); }
-
 .timer-card-info { flex: 1; min-width: 0; }
-
 .timer-card-name {
   font-size: 16px;
   font-weight: 700;
@@ -230,12 +155,7 @@ a { color: var(--accent); text-decoration: none; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.timer-card-meta {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
+.timer-card-meta { font-size: 12px; color: var(--text-dim); }
 .timer-card-delete {
   width: 36px;
   height: 36px;
@@ -247,35 +167,13 @@ a { color: var(--accent); text-decoration: none; }
   cursor: pointer;
   flex-shrink: 0;
 }
+.timer-card-delete:active { background: var(--danger); color: #fff; }
 
-.timer-card-delete:active {
-  background: var(--danger);
-  color: #fff;
-}
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 14px; }
+.empty-state.small { padding: 20px; font-size: 13px; }
 
-.empty-state {
-  text-align: center;
-  padding: 40px 20px;
-  color: var(--text-dim);
-  font-size: 14px;
-}
-
-.empty-state.small {
-  padding: 20px;
-  font-size: 13px;
-}
-
-/* ============================================================
-   EDITOR MAIN
-   ============================================================ */
-
-.editor-main {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 16px;
-  padding-bottom: 80px;
-}
-
+/* EDITOR MAIN */
+.editor-main { max-width: 720px; margin: 0 auto; padding: 16px; padding-bottom: 80px; }
 .form-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -283,7 +181,6 @@ a { color: var(--accent); text-decoration: none; }
   padding: 18px;
   margin-bottom: 16px;
 }
-
 .form-label {
   display: block;
   font-size: 12px;
@@ -293,7 +190,6 @@ a { color: var(--accent); text-decoration: none; }
   letter-spacing: 0.5px;
   margin: 16px 0 6px;
 }
-
 .form-label:first-child { margin-top: 0; }
 
 .form-card input[type="text"],
@@ -309,30 +205,13 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--text);
   font-family: inherit;
 }
-
 .form-card input:focus,
 .form-card select:focus,
-.form-card textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-}
+.form-card textarea:focus { outline: none; border-color: var(--accent); }
+.form-card textarea { resize: vertical; min-height: 44px; }
 
-.form-card textarea {
-  resize: vertical;
-  min-height: 44px;
-}
-
-/* ============================================================
-   TOGGLES
-   ============================================================ */
-
-.toggle-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 4px;
-}
-
+/* TOGGLES */
+.toggle-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
 .toggle-label {
   display: flex;
   align-items: center;
@@ -345,17 +224,9 @@ a { color: var(--accent); text-decoration: none; }
   cursor: pointer;
   user-select: none;
 }
+.toggle-label input { margin: 0; width: auto; accent-color: var(--accent); }
 
-.toggle-label input {
-  margin: 0;
-  width: auto;
-  accent-color: var(--accent);
-}
-
-/* ============================================================
-   SECTION HEAD
-   ============================================================ */
-
+/* SECTION HEAD */
 .section-head {
   display: flex;
   justify-content: space-between;
@@ -364,33 +235,12 @@ a { color: var(--accent); text-decoration: none; }
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
+.section-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.section-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.section-head h2 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.section-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-/* ============================================================
-   INTERVAL LIST (in editor)
-   ============================================================ */
-
-.interval-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.interval-list.small {
-  gap: 6px;
-}
-
+/* INTERVAL LIST */
+.interval-list { display: flex; flex-direction: column; gap: 8px; }
+.interval-list.small { gap: 6px; }
 .interval-row {
   display: flex;
   align-items: center;
@@ -401,14 +251,8 @@ a { color: var(--accent); text-decoration: none; }
   border-radius: var(--radius);
   cursor: pointer;
 }
-
 .interval-row:active { border-color: var(--accent); }
-
-.interval-row.small {
-  padding: 8px 12px;
-  font-size: 13px;
-}
-
+.interval-row.small { padding: 8px 12px; font-size: 13px; }
 .interval-swatch {
   width: 22px;
   height: 22px;
@@ -416,14 +260,8 @@ a { color: var(--accent); text-decoration: none; }
   flex-shrink: 0;
   border: 1px solid rgba(255,255,255,0.15);
 }
-
-.interval-swatch.small {
-  width: 16px;
-  height: 16px;
-}
-
+.interval-swatch.small { width: 16px; height: 16px; }
 .interval-info { flex: 1; min-width: 0; }
-
 .interval-name-row {
   font-size: 14px;
   font-weight: 700;
@@ -433,19 +271,9 @@ a { color: var(--accent); text-decoration: none; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.interval-meta { font-size: 12px; color: var(--text-dim); }
 
-.interval-meta {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.interval-row-actions {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
+.interval-row-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
 .interval-move-btn {
   width: 30px;
   height: 30px;
@@ -456,8 +284,32 @@ a { color: var(--accent); text-decoration: none; }
   font-size: 14px;
   cursor: pointer;
 }
-
 .interval-move-btn:active { color: var(--accent); border-color: var(--accent); }
+
+.interval-copy-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+}
+.interval-copy-btn:active { color: var(--accent); border-color: var(--accent); }
+
+.interval-tts-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.interval-tts-btn:active { color: var(--accent); border-color: var(--accent); }
 
 .interval-delete-btn {
   width: 30px;
@@ -469,21 +321,66 @@ a { color: var(--accent); text-decoration: none; }
   font-size: 16px;
   cursor: pointer;
 }
+.interval-delete-btn:active { background: var(--danger); color: #fff; }
 
-.interval-delete-btn:active {
-  background: var(--danger);
+.interval-row.is-circuit { border-color: var(--accent); background: rgba(46, 108, 246, 0.08); }
+
+/* DRAG */
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  font-size: 16px;
+  color: var(--text-dim);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+  touch-action: none;
+  letter-spacing: -2px;
+}
+.drag-handle:active { cursor: grabbing; color: var(--accent); }
+.interval-row.dragging { opacity: 0.4; border-color: var(--accent); }
+.interval-row.drag-over-top { box-shadow: 0 -3px 0 0 var(--accent); }
+.interval-row.drag-over-bottom { box-shadow: 0 3px 0 0 var(--accent); }
+.interval-row[draggable="true"] { cursor: grabbing; }
+
+/* PASTE BAR */
+.paste-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(46, 108, 246, 0.12);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+.paste-label { flex: 1; font-size: 13px; color: var(--text-dim); }
+.paste-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
   color: #fff;
+  cursor: pointer;
 }
-
-.interval-row.is-circuit {
-  border-color: var(--accent);
-  background: rgba(46, 108, 246, 0.08);
+.paste-btn:active { opacity: 0.8; }
+.clear-clip-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
 }
+.clear-clip-btn:active { border-color: var(--danger); color: var(--danger); }
 
-/* ============================================================
-   MODALS
-   ============================================================ */
-
+/* MODALS */
 .modal {
   position: fixed;
   inset: 0;
@@ -495,7 +392,6 @@ a { color: var(--accent); text-decoration: none; }
   padding: 20px 16px;
   overflow-y: auto;
 }
-
 .modal-card {
   width: 100%;
   max-width: 500px;
@@ -506,14 +402,8 @@ a { color: var(--accent); text-decoration: none; }
   position: relative;
   margin: auto 0;
 }
-
 .modal-card.wide { max-width: 640px; }
-
-.modal-card h2 {
-  margin: 0 0 16px;
-  font-size: 19px;
-}
-
+.modal-card h2 { margin: 0 0 16px; font-size: 19px; }
 .modal-x {
   position: absolute;
   top: 12px;
@@ -528,17 +418,8 @@ a { color: var(--accent); text-decoration: none; }
   cursor: pointer;
 }
 
-/* ============================================================
-   QUICK DURATIONS
-   ============================================================ */
-
-.quick-durations {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-
+/* QUICK DURATIONS */
+.quick-durations { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip {
   padding: 8px 14px;
   font-size: 13px;
@@ -549,41 +430,15 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--text-dim);
   cursor: pointer;
 }
-
 .chip:active,
-.chip.selected {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
+.chip.selected { border-color: var(--accent); background: var(--accent); color: #fff; }
 
-/* ============================================================
-   COLOR PICKER
-   ============================================================ */
+/* COLOR PICKER */
+.color-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 6px; margin-top: 4px; }
+.color-swatch { aspect-ratio: 1; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+.color-swatch.selected { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
 
-.color-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.color-swatch {
-  aspect-ratio: 1;
-  border-radius: 8px;
-  border: 2px solid transparent;
-  cursor: pointer;
-}
-
-.color-swatch.selected {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px var(--accent);
-}
-
-/* ============================================================
-   TOAST
-   ============================================================ */
-
+/* TOAST */
 .toast {
   position: fixed;
   bottom: 20px;
@@ -599,107 +454,12 @@ a { color: var(--accent); text-decoration: none; }
   max-width: calc(100% - 40px);
   text-align: center;
 }
-
 .toast.error { background: var(--danger); }
 .toast.warn { background: var(--warn); color: #1a1a1a; }
-
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
 
 @media (max-width: 480px) {
   .form-card { padding: 14px; }
   .section-head { gap: 8px; }
   .section-actions { width: 100%; }
   .section-actions button { flex: 1; }
-}
-
-
-
-/* ============================================================
-   DRAG AND DROP + PASTE BAR (added 2026-09-27)
-   ============================================================ */
-
-.drag-handle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  font-size: 16px;
-  color: var(--text-dim);
-  cursor: grab;
-  user-select: none;
-  -webkit-user-select: none;
-  flex-shrink: 0;
-  touch-action: none;
-  letter-spacing: -2px;
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-  color: var(--accent);
-}
-
-.interval-row.dragging {
-  opacity: 0.4;
-  border-color: var(--accent);
-}
-
-.interval-row.drag-over-top {
-  box-shadow: 0 -3px 0 0 var(--accent);
-}
-
-.interval-row.drag-over-bottom {
-  box-shadow: 0 3px 0 0 var(--accent);
-}
-
-.interval-row[draggable="true"] {
-  cursor: grabbing;
-}
-
-/* Paste bar (clipboard UI) */
-
-.paste-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: rgba(46, 108, 246, 0.12);
-  border: 1px dashed var(--accent);
-  border-radius: var(--radius);
-  margin-bottom: 8px;
-}
-
-.paste-label {
-  flex: 1;
-  font-size: 13px;
-  color: var(--text-dim);
-}
-
-.paste-btn {
-  padding: 6px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 6px;
-  border: none;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-}
-
-.paste-btn:active { opacity: 0.8; }
-
-.clear-clip-btn {
-  padding: 6px 12px;
-  font-size: 13px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-}
-
-.clear-clip-btn:active {
-  border-color: var(--danger);
-  color: var(--danger);
 }
