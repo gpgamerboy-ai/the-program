@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — v5 (structure parser fix)
+// TIMER PLAYER — v6 (respects per-interval TTS toggle)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -144,10 +144,6 @@ async function fetchTimer() {
   }
 }
 
-// ============================================================
-// STRUCTURE PARSER — handles string OR already-parsed array
-// ============================================================
-
 function parseStructure(raw) {
   if (Array.isArray(raw)) return raw;
   if (typeof raw === "string") {
@@ -178,6 +174,11 @@ function expandStructure(raw) {
     }
   });
   return flat;
+}
+
+function isTtsEnabled(iv) {
+  if (!iv) return true;
+  return iv.ttsEnabled !== false;
 }
 
 function handleStart() {
@@ -234,10 +235,12 @@ function beginInterval(index) {
   updateIntervalList();
   scrollToCurrent();
 
-  speak(iv.name || iv.type);
+  if (isTtsEnabled(iv)) {
+    speak(iv.name || iv.type);
+  }
 
   const nextIv = state.structure[index + 1];
-  if (nextIv && shouldCue("nextUp")) {
+  if (nextIv && shouldCue("nextUp") && isTtsEnabled(nextIv)) {
     setTimeout(function () {
       speak("Next: " + (nextIv.name || nextIv.type));
     }, 1500);
@@ -255,9 +258,10 @@ function startTicking() {
     state.timeLeft--;
 
     const iv = state.structure[state.phaseIndex];
+    const ttsOn = isTtsEnabled(iv);
     const halfwayThreshold = Math.floor((parseInt(iv.duration, 10) || 0) / 2);
-    if (state.timeLeft === halfwayThreshold && shouldCue("halfway")) speak("Halfway");
-    if (state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) speak(String(state.timeLeft));
+    if (ttsOn && state.timeLeft === halfwayThreshold && shouldCue("halfway")) speak("Halfway");
+    if (ttsOn && state.timeLeft <= 3 && state.timeLeft > 0 && shouldCue("countdown3s")) speak(String(state.timeLeft));
 
     if (state.timeLeft <= 0) {
       clearInterval(state.intervalHandle);
