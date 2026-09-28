@@ -5,13 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f1115" />
   <title>Timer Builder</title>
-  <link rel="stylesheet" href="timer-builder.css?v=4" />
+  <link rel="stylesheet" href="timer-builder.css?v=5" />
 </head>
 <body>
 
-  <!-- ============================================================ -->
-  <!-- COACH KEY GATE                                               -->
-  <!-- ============================================================ -->
   <section id="keyGate" class="key-gate">
     <div class="key-card">
       <h1>Timer Builder</h1>
@@ -22,9 +19,6 @@
     </div>
   </section>
 
-  <!-- ============================================================ -->
-  <!-- MAIN VIEW — Timer list                                       -->
-  <!-- ============================================================ -->
   <section id="listView" class="app-view hidden">
     <header class="app-header">
       <h1>Timers</h1>
@@ -33,15 +27,11 @@
         <button id="signOutBtn" class="icon-btn" title="Sign out">⏻</button>
       </div>
     </header>
-
     <main id="timerList" class="timer-list">
       <div class="empty-state">Loading timers…</div>
     </main>
   </section>
 
-  <!-- ============================================================ -->
-  <!-- EDITOR VIEW                                                  -->
-  <!-- ============================================================ -->
   <section id="editorView" class="app-view hidden">
     <header class="app-header">
       <button id="backBtn" class="icon-btn" title="Back">←</button>
@@ -53,7 +43,6 @@
     </header>
 
     <main class="editor-main">
-      <!-- Timer meta -->
       <div class="form-card">
         <label class="form-label">Timer Name</label>
         <input id="timerName" type="text" placeholder="e.g. Tabata 20/10" />
@@ -88,7 +77,6 @@
         <textarea id="timerNotes" rows="2" placeholder="Optional notes"></textarea>
       </div>
 
-      <!-- Intervals -->
       <div class="form-card">
         <div class="section-head">
           <h2>Intervals</h2>
@@ -97,7 +85,6 @@
             <button id="addCircuitBtn" class="secondary-btn small">+ Circuit</button>
           </div>
         </div>
-
         <div id="intervalList" class="interval-list">
           <div class="empty-state">No intervals yet. Add one.</div>
         </div>
@@ -105,9 +92,7 @@
     </main>
   </section>
 
-  <!-- ============================================================ -->
-  <!-- INTERVAL EDITOR MODAL                                        -->
-  <!-- ============================================================ -->
+  <!-- INTERVAL EDITOR MODAL -->
   <div id="intervalModal" class="modal hidden">
     <div class="modal-card">
       <button id="intervalClose" class="modal-x">×</button>
@@ -157,9 +142,7 @@
     </div>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- CIRCUIT EDITOR MODAL                                         -->
-  <!-- ============================================================ -->
+  <!-- CIRCUIT EDITOR MODAL -->
   <div id="circuitModal" class="modal hidden">
     <div class="modal-card wide">
       <button id="circuitClose" class="modal-x">×</button>
@@ -183,12 +166,20 @@
       <label class="form-label">Rest After Circuit (optional, seconds)</label>
       <input id="circuitAfterCircuit" type="number" min="0" placeholder="60" />
 
+      <label class="form-label">Text-to-Speech</label>
+      <div class="toggle-row">
+        <label class="toggle-label">
+          <input id="circuitTtsEnabled" type="checkbox" checked />
+          <span>Speak this circuit's contents aloud</span>
+        </label>
+      </div>
+
       <button id="circuitSave" class="primary-btn">Save Circuit</button>
     </div>
   </div>
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="timer-builder.js?v=5"></script>
+  <script src="timer-builder.js?v=6"></script>
 </body>
 </html>
