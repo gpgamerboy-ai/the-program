@@ -1,5 +1,5 @@
 // ============================================================
-// PROGRAM CREATOR — program-creator.js v1
+// PROGRAM CREATOR — program-creator.js v2 (pipe delimiter)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -77,38 +77,43 @@ function showApp() {
 }
 
 // ============================================================
-// PROMPT
+// PROMPT — uses pipe delimiter
 // ============================================================
 
 function renderPrompt() {
   const prompt = [
-    "Generate a training program as TSV (tab-separated values) rows for a Google Sheet.",
+    "Generate a training program as PIPE-DELIMITED rows for a Google Sheet.",
     "",
     "Return ONLY the rows. No headers. No markdown. No code fences. Plain text.",
     "",
-    "Each row has exactly 13 columns, tab-separated, in this order:",
+    "Each row must have EXACTLY 13 values, separated by the pipe character |",
+    "Always include all 13 values. If a value is empty, leave it blank between two pipes.",
+    "The line must end with three pipes if the last three columns are empty.",
     "",
-    "1. Program       — program name (e.g. \"Lopez Fall\")",
-    "2. Week          — week number (1-52, deload, or blank)",
-    "3. Day           — day letter (A, B, C, etc.)",
-    "4. Exercise      — exercise name (e.g. \"Back Squat\")",
-    "5. Type          — main, support, or blank",
-    "6. Rest          — rest time (e.g. \"90s\", \"2min\", or blank)",
-    "7. Tempo         — tempo code (e.g. \"2/1/2/0\", or blank)",
-    "8. SetNum        — set identifier (1, 2, 3, W1, W2, etc.)",
-    "9. TargetType    — one of: reps, left_in_tank, rpe, failure, burn, feel,",
-    "                   amrap, check, duration, interval_time, distance, pace,",
-    "                   reps_only, touches, custom, or blank",
-    "10. TargetValue  — the target (e.g. \"8-10\", \"30 sec\", \"5K\", \"50 touches\",",
-    "                   or blank)",
-    "11. TargetNote   — coaching cue for this set (or blank)",
-    "12. LoadLogic    — auto-load rule (or blank)",
-    "13. Notes        — extra notes for this set (or blank)",
+    "Columns in order:",
     "",
-    "Example rows (tab-separated):",
-    "Lopez Fall\t1\tA\tBack Squat\tmain\t2min\t2/1/2/0\t1\treps\t8-10\t2 in tank\t\t",
-    "Lopez Fall\t1\tA\tBack Squat\tmain\t2min\t2/1/2/0\t2\treps\t8-10\t2 in tank\t\t",
-    "Lopez Fall\t1\tA\tRomanian Deadlift\tsupport\t90s\t\t1\treps\t10-12\tfeel it out\t\t",
+    " 1. Program       — program name",
+    " 2. Week          — week number (1-52, deload, or blank)",
+    " 3. Day           — day letter (A, B, C, etc.)",
+    " 4. Exercise      — exercise name",
+    " 5. Type          — main, support, or blank",
+    " 6. Rest          — rest time (e.g. 90s, 2min, or blank)",
+    " 7. Tempo         — tempo code (e.g. 2/1/2/0, or blank)",
+    " 8. SetNum        — set identifier (1, 2, 3, W1, W2, etc.)",
+    " 9. TargetType    — one of: reps, left_in_tank, rpe, failure, burn, feel,",
+    "                    amrap, check, duration, interval_time, distance, pace,",
+    "                    reps_only, touches, custom, or blank",
+    "10. TargetValue   — the target (e.g. 8-10, 30 sec, 5K, 50 touches, or blank)",
+    "11. TargetNote    — coaching cue for this set (or blank)",
+    "12. LoadLogic     — auto-load rule (or blank)",
+    "13. Notes         — extra notes for this set (or blank)",
+    "",
+    "Example rows (each line has 13 pipes / 14 segments separated by pipes):",
+    "Lopez Fall|1|A|Back Squat|main|2min|2/1/2/0|1|reps|8-10|2 in tank||",
+    "Lopez Fall|1|A|Back Squat|main|2min|2/1/2/0|2|reps|8-10|2 in tank||",
+    "Lopez Fall|1|A|Romanian Deadlift|support|90s||1|reps|10-12|feel it out||",
+    "",
+    "Verify each line has exactly 13 pipe separators before returning. Count them.",
     "",
     "Now generate a program for: [INSERT YOUR REQUEST HERE]"
   ].join("\n");
@@ -128,7 +133,7 @@ async function copyPrompt() {
 }
 
 // ============================================================
-// PARSE + VALIDATE
+// PARSE + VALIDATE — accepts pipe or tab, pads to 13
 // ============================================================
 
 function handleValidate() {
@@ -142,29 +147,40 @@ function handleValidate() {
   state.rows = [];
   state.issues = [];
 
+  // Detect delimiter: prefer pipe if line 1 has any pipe
+  const firstLine = lines[0] || "";
+  const usePipe = firstLine.indexOf("|") !== -1;
+
   lines.forEach(function (line, i) {
-    const cols = line.split("\t");
+    const cols = usePipe ? line.split("|") : line.split("\t");
     const row = { lineNum: i + 1, cols: cols, errors: [], warnings: [] };
 
-    if (cols.length !== COLS) {
-      row.errors.push("Expected " + COLS + " columns, found " + cols.length);
+    // Trim each col
+    row.cols = cols.map(function (c) { return String(c).trim(); });
+
+    // Pad to 13 if short
+    if (row.cols.length < COLS) {
+      const missing = COLS - row.cols.length;
+      row.warnings.push("Padded " + missing + " empty column(s) to reach 13");
+      while (row.cols.length < COLS) row.cols.push("");
     }
 
-    // Trim all cols
-    row.cols = cols.map(function (c) { return String(c).trim(); });
+    // Too many columns — hard error
+    if (row.cols.length > COLS) {
+      row.errors.push("Found " + row.cols.length + " columns (max 13)");
+    }
 
     // Required fields
     const program = row.cols[0];
-    const week = row.cols[1];
     const day = row.cols[2];
     const exercise = row.cols[3];
     const setNum = row.cols[7];
     const targetType = row.cols[8];
 
-    if (!program) row.errors.push("Column A (Program) is empty");
-    if (!day) row.errors.push("Column C (Day) is empty");
-    if (!exercise) row.errors.push("Column D (Exercise) is empty");
-    if (!setNum) row.errors.push("Column H (SetNum) is empty");
+    if (!program) row.errors.push("Column 1 (Program) is empty");
+    if (!day) row.errors.push("Column 3 (Day) is empty");
+    if (!exercise) row.errors.push("Column 4 (Exercise) is empty");
+    if (!setNum) row.errors.push("Column 8 (SetNum) is empty");
 
     if (targetType && VALID_TARGET_TYPES.indexOf(targetType) === -1) {
       row.warnings.push("TargetType '" + targetType + "' is not in the known list");
@@ -225,20 +241,13 @@ function renderPreview() {
     body.appendChild(tr);
   });
 
-  // Auto-fill program name if there's exactly one program in the rows
   const programNames = Object.keys(programs);
   if (programNames.length === 1 && !$("programNameInput").value) {
     $("programNameInput").value = programNames[0];
   }
 }
 
-function syncSaveModeUI() {
-  // No UI change needed for now — the select drives behavior in handleSave
-}
-
-// ============================================================
-// SAVE
-// ============================================================
+function syncSaveModeUI() {}
 
 async function handleSave() {
   const errorCount = state.rows.filter(function (r) { return r.errors.length > 0; }).length;
@@ -255,7 +264,6 @@ async function handleSave() {
 
   const mode = $("saveModeSelect").value;
 
-  // Warn before destructive action
   if (mode === "replace") {
     if (!confirm("Replace ALL rows for '" + programName + "'? This cannot be undone.")) return;
   }
@@ -288,10 +296,6 @@ async function handleSave() {
     btn.textContent = "Save to sheet";
   }
 }
-
-// ============================================================
-// HELPERS
-// ============================================================
 
 async function callAPI(payload) {
   const params = new URLSearchParams();
