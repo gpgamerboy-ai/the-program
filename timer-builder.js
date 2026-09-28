@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER BUILDER — v6 with fixed drag-and-drop
+// TIMER BUILDER — v7 (TTS per-interval toggle)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -292,6 +292,8 @@ function renderIntervalRow(iv, index) {
     ? (iv.name || "Circuit")
     : (iv.name || iv.type || "Interval");
 
+  const ttsLabel = (iv.ttsEnabled === false && !isCircuit) ? ' <span style="color:#6b7280;font-size:11px;">· mute</span>' : '';
+
   const meta = isCircuit
     ? iv.rounds + " rounds × " + (iv.intervals || []).length + " intervals"
     : formatDuration(iv.duration || 0) + " • " + (iv.type || "work");
@@ -300,7 +302,7 @@ function renderIntervalRow(iv, index) {
     '<div class="drag-handle" title="Drag to reorder">⋮⋮</div>' +
     '<div class="interval-swatch" style="background:' + color + '"></div>' +
     '<div class="interval-info">' +
-      '<div class="interval-name-row">' + escapeHtml(name) + '</div>' +
+      '<div class="interval-name-row">' + escapeHtml(name) + ttsLabel + '</div>' +
       '<div class="interval-meta">' + escapeHtml(meta) + '</div>' +
     '</div>' +
     '<div class="interval-row-actions">' +
@@ -333,8 +335,6 @@ function renderIntervalRow(iv, index) {
 }
 
 function attachDragHandlers(row, index) {
-  // HTML5 native drag. Do NOT add mousedown/touchstart preventDefault —
-  // that kills Chrome's drag initiation.
   row.addEventListener("dragstart", function (e) {
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", String(index));
@@ -428,6 +428,7 @@ function openNewIntervalModal() {
   $("ivType").value = "work";
   $("ivDuration").value = "";
   $("ivColorCustom").value = "";
+  $("ivTtsEnabled").checked = true;
   state.quickDurationValue = null;
   document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
   selectColorSwatch("#b8f52c");
@@ -442,6 +443,7 @@ function openIntervalModal(index) {
   $("ivType").value = iv.type || "work";
   $("ivDuration").value = iv.duration || "";
   $("ivColorCustom").value = "";
+  $("ivTtsEnabled").checked = iv.ttsEnabled !== false;
   document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
   if (iv.color) selectColorSwatch(iv.color);
   else selectColorSwatch("#b8f52c");
@@ -458,6 +460,7 @@ function saveIntervalFromModal() {
   const type = $("ivType").value;
   const duration = parseInt($("ivDuration").value, 10);
   const color = $("ivColorCustom").value.trim() || getSelectedColor() || "#b8f52c";
+  const ttsEnabled = $("ivTtsEnabled").checked;
 
   if (!name) { showToast("Give the interval a name", true); return; }
   if (!duration || duration < 1) { showToast("Set a duration", true); return; }
@@ -466,7 +469,8 @@ function saveIntervalFromModal() {
     name: name,
     type: type,
     duration: duration,
-    color: color
+    color: color,
+    ttsEnabled: ttsEnabled
   };
 
   if (state.editingIntervalIndex >= 0) {
@@ -593,7 +597,8 @@ function addInnerInterval() {
     name: name,
     type: typeChoice,
     duration: duration,
-    color: color
+    color: color,
+    ttsEnabled: true
   });
 
   renderCircuitInnerList();
@@ -757,4 +762,3 @@ function showToast(msg, isError) {
   if (isError) t.classList.add("error");
   setTimeout(function () { t.classList.add("hidden"); }, 2400);
 }
-
