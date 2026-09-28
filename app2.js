@@ -1,5 +1,5 @@
 // ============================================================
-// THE PROGRAM — app2.js (v6, set re-entry lock + edit mode)
+// THE PROGRAM — app2.js (v6.1, set re-entry lock + edit mode)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -650,10 +650,6 @@ async function commitSet(payload, btn, exerciseName, idBase) {
   }
 }
 
-// ============================================================
-// LOCK / UNLOCK / EDIT — set re-entry UX
-// ============================================================
-
 function lockSet(idBase) {
   const fields = [
     $(idBase + "_w"),
@@ -710,7 +706,6 @@ function unlockSetForEdit(idBase) {
 
   showToast("Edit mode — make changes, then Save");
 
-  // Auto-lock if athlete navigates away or waits too long without saving
   if (window.__editAutoLock) clearTimeout(window.__editAutoLock);
   window.__editAutoLock = setTimeout(function () {
     const b = $(idBase + "_btn");
@@ -1020,7 +1015,7 @@ function showWelcomePopup(fromHelpButton) {
       '<li>Tap <strong>Log</strong>. You have 3 seconds to cancel before it saves.</li>' +
       '<li>After logging, fields lock. Tap <strong>Logged ✓</strong> to edit a value.</li>' +
       '<li>Need to fix something later? Open History, tap any set to edit or delete.</li>' +
-      '<li>Offline? Your sets save and sync when you\'re back online.</li>' +
+      '<li>Offline? Your sets save and sync when you are back online.</li>' +
     '</ul>' +
     '<h3>Terms</h3>' +
     '<h4>Rest</h4><p>Time between sets. Shown at the top of each lift.</p>' +
@@ -1116,4 +1111,3 @@ function showToast(msg, isError) {
   else if (isError === "warn") dom.toast.classList.add("warn");
   setTimeout(function () { dom.toast.classList.add("hidden"); }, 2400);
 }
-
