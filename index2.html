@@ -5,20 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0f1115" />
   <title>Workout Tracker</title>
-  <link rel="stylesheet" href="style2.css?v=6" />
+  <link rel="stylesheet" href="style2.css?v=7" />
 </head>
 <body>
 
-  <!-- ============================================================ -->
-  <!-- OFFLINE BANNER                                               -->
-  <!-- ============================================================ -->
   <div id="offlineBanner" class="offline-banner hidden">
     Offline — sets will sync when you're back online.
   </div>
 
-  <!-- ============================================================ -->
-  <!-- LOGIN SCREEN                                                 -->
-  <!-- ============================================================ -->
   <section id="loginScreen" class="login-screen">
     <div class="login-card">
       <h1>Workout Tracker</h1>
@@ -39,36 +33,32 @@
     </div>
   </section>
 
-  <!-- ============================================================ -->
-  <!-- MAIN APP                                                     -->
-  <!-- ============================================================ -->
   <section id="appScreen" class="app-screen hidden">
 
-    <!-- Header -->
     <header class="app-header">
       <div class="header-left">
         <h1>Workout Tracker</h1>
         <div class="header-user">Logged in: <span id="headerName">—</span></div>
       </div>
       <div class="header-right">
+        <button id="msgIconBtn" class="icon-btn" title="Messages">✉
+          <span id="msgBadge" class="msg-badge hidden">0</span>
+        </button>
         <button id="helpBtn" class="icon-btn" title="Help / Legend">?</button>
         <button id="refreshBtn" class="icon-btn" title="Refresh">↻</button>
         <button id="logoutBtn" class="icon-btn" title="Log out">⏻</button>
       </div>
     </header>
 
-    <!-- Tabs -->
     <nav class="tab-bar">
       <button class="tab-btn active" data-tab="workout">Workout</button>
       <button class="tab-btn" data-tab="history">History</button>
     </nav>
 
-    <!-- ============================================================ -->
-    <!-- WORKOUT TAB                                                  -->
-    <!-- ============================================================ -->
     <main id="tab-workout" class="tab-panel">
 
-      <!-- Plan picker -->
+      <div id="msgBanner" class="msg-banner hidden"></div>
+
       <section class="plan-picker">
         <h2>Pick today's plan</h2>
         <div class="plan-buttons">
@@ -78,10 +68,8 @@
         </div>
       </section>
 
-      <!-- Exercise cards go here -->
       <section id="exerciseList"></section>
 
-      <!-- Download section -->
       <section class="download-section">
         <h2>Download an empty log</h2>
         <p class="download-note">
@@ -95,9 +83,6 @@
       </section>
     </main>
 
-    <!-- ============================================================ -->
-    <!-- HISTORY TAB                                                  -->
-    <!-- ============================================================ -->
     <main id="tab-history" class="tab-panel hidden">
       <section class="history-header">
         <h2>Your History</h2>
@@ -123,17 +108,11 @@
       <section id="historyList"></section>
     </main>
 
-    <!-- ============================================================ -->
-    <!-- FOOTER                                                       -->
-    <!-- ============================================================ -->
     <footer class="app-footer">
       Contact your coach directly.
     </footer>
   </section>
 
-  <!-- ============================================================ -->
-  <!-- WELCOME / LEGEND POPUP                                       -->
-  <!-- ============================================================ -->
   <div id="welcomePopup" class="popup hidden">
     <div class="popup-card">
       <button id="popupCloseX" class="popup-x" aria-label="Close">×</button>
@@ -145,9 +124,6 @@
     </div>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- EDIT MODAL for History                                       -->
-  <!-- ============================================================ -->
   <div id="editModal" class="popup hidden">
     <div class="popup-card">
       <button id="editModalCloseX" class="popup-x" aria-label="Close">×</button>
@@ -155,9 +131,6 @@
     </div>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- LAST-TIME MODAL                                              -->
-  <!-- ============================================================ -->
   <div id="lastTimeModal" class="popup hidden">
     <div class="popup-card wide">
       <button id="lastTimeCloseX" class="popup-x" aria-label="Close">×</button>
@@ -165,11 +138,15 @@
     </div>
   </div>
 
-  <!-- ============================================================ -->
-  <!-- TOAST                                                        -->
-  <!-- ============================================================ -->
+  <div id="msgThreadModal" class="popup hidden">
+    <div class="popup-card wide">
+      <button id="msgThreadClose" class="popup-x" aria-label="Close">×</button>
+      <div id="msgThreadContent"></div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 
-  <script src="app2.js?v=9"></script>
+  <script src="app2.js?v=10"></script>
 </body>
 </html>
