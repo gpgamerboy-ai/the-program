@@ -1,10 +1,11 @@
 // ============================================================
-// PROGRAM CREATOR — program-creator.js v3 (delimiter normalization)
+// PROGRAM CREATOR — program-creator.js v5 (chunked GET save)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
 const COACH_KEY_STORAGE = "coachKey";
 const COLS = 13;
+const CHUNK_SIZE = 15;
 const VALID_TARGET_TYPES = [
   "reps", "left_in_tank", "rpe", "failure", "burn", "feel", "amrap", "check",
   "duration", "interval_time", "distance", "pace", "reps_only", "touches", "custom"
@@ -76,22 +77,11 @@ function showApp() {
   $("pcApp").classList.remove("hidden");
 }
 
-// ============================================================
-// DELIMITER NORMALIZATION — handles lookalike characters
-// ============================================================
-
 function normalizeDelimiters(line) {
   return String(line)
-    .replace(/¦/g, "|")   // broken bar U+00A6
-    .replace(/｜/g, "|")  // fullwidth vertical line U+FF5C
-    .replace(/│/g, "|")   // box drawings light vertical U+2502
-    .replace(/┃/g, "|")   // box drawings heavy vertical U+2503
-    .replace(/❘/g, "|")   // light vertical bar U+2758
-    .replace(/❙/g, "|")   // medium vertical bar U+2759
-    .replace(/❚/g, "|")   // heavy vertical bar U+275A
-    .replace(/⁞/g, "|")   // vertical four dots U+205E
-    .replace(/︱/g, "|")   // presentation form for vertical hyphen U+FE31
-    .replace(/︳/g, "|");  // presentation form for vertical wavy low line U+FE33
+    .replace(/¦/g, "|").replace(/｜/g, "|").replace(/│/g, "|").replace(/┃/g, "|")
+    .replace(/❘/g, "|").replace(/❙/g, "|").replace(/❚/g, "|").replace(/⁞/g, "|")
+    .replace(/︱/g, "|").replace(/︳/g, "|");
 }
 
 function parseRow(line) {
@@ -101,10 +91,6 @@ function parseRow(line) {
   return pipeCols.length >= tabCols.length ? pipeCols : tabCols;
 }
 
-// ============================================================
-// PROMPT
-// ============================================================
-
 function renderPrompt() {
   const prompt = [
     "Generate a training program as PIPE-DELIMITED rows for a Google Sheet.",
@@ -113,7 +99,6 @@ function renderPrompt() {
     "",
     "Each row must have EXACTLY 13 values, separated by the ASCII pipe character |",
     "Always include all 13 values. If a value is empty, leave it blank between two pipes.",
-    "The line must end with the correct number of trailing pipes if the last columns are empty.",
     "",
     "Columns in order:",
     "",
@@ -133,14 +118,11 @@ function renderPrompt() {
     "12. LoadLogic     — auto-load rule (or blank)",
     "13. Notes         — extra notes for this set (or blank)",
     "",
-    "Example rows (13 values per line, so 12 internal pipes plus trailing empties):",
+    "Example rows:",
     "Lopez Fall|1|A|Back Squat|main|2min|2/1/2/0|1|reps|8-10|2 in tank||",
-    "Lopez Fall|1|A|Back Squat|main|2min|2/1/2/0|2|reps|8-10|2 in tank||",
     "Lopez Fall|1|A|Romanian Deadlift|support|90s||1|reps|10-12|feel it out||",
     "",
-    "Use the ASCII pipe character (Shift+Backslash on US keyboards, character code 124).",
-    "Do NOT use broken bars, fullwidth pipes, or box-drawing characters.",
-    "Count your pipes: each line must have exactly 12 pipe characters for 13 values.",
+    "Use the ASCII pipe character (character code 124). Count your pipes: 12 per line.",
     "",
     "Now generate a program for: [INSERT YOUR REQUEST HERE]"
   ].join("\n");
@@ -159,10 +141,6 @@ async function copyPrompt() {
   }
 }
 
-// ============================================================
-// PARSE + VALIDATE
-// ============================================================
-
 function handleValidate() {
   const raw = $("pasteArea").value;
   if (!raw.trim()) {
@@ -172,22 +150,17 @@ function handleValidate() {
 
   const lines = raw.split(/\r?\n/).filter(function (l) { return l.trim().length > 0; });
   state.rows = [];
-  state.issues = [];
 
   lines.forEach(function (line, i) {
     const cols = parseRow(line);
     const row = { lineNum: i + 1, cols: [], errors: [], warnings: [] };
-
-    // Trim each
     row.cols = cols.map(function (c) { return String(c).trim(); });
 
-    // Pad to 13 if short
     if (row.cols.length < COLS) {
       const missing = COLS - row.cols.length;
       row.warnings.push("Padded " + missing + " empty column(s) to reach 13");
       while (row.cols.length < COLS) row.cols.push("");
     }
-
     if (row.cols.length > COLS) {
       row.errors.push("Found " + row.cols.length + " columns (max 13)");
     }
@@ -204,7 +177,7 @@ function handleValidate() {
     if (!setNum) row.errors.push("Column 8 (SetNum) is empty");
 
     if (targetType && VALID_TARGET_TYPES.indexOf(targetType) === -1) {
-      row.warnings.push("TargetType '" + targetType + "' is not in the known list");
+      row.warnings.push("TargetType '" + targetType + "' not in known list");
     }
 
     state.rows.push(row);
@@ -249,12 +222,11 @@ function renderPreview() {
     issueList.innerHTML = html;
   }
 
-  state.rows.forEach(function (r, i) {
+  state.rows.forEach(function (r) {
     const tr = document.createElement("tr");
     if (r.errors.length) tr.className = "error";
     else if (r.warnings.length) tr.className = "warn";
-
-    let html = '<td>' + (r.lineNum) + '</td>';
+    let html = '<td>' + r.lineNum + '</td>';
     for (let c = 0; c < COLS; c++) {
       html += '<td>' + escapeHtml(r.cols[c] || "") + '</td>';
     }
@@ -278,13 +250,9 @@ async function handleSave() {
   }
 
   const programName = $("programNameInput").value.trim();
-  if (!programName) {
-    showToast("Enter a program name", true);
-    return;
-  }
+  if (!programName) { showToast("Enter a program name", true); return; }
 
   const mode = $("saveModeSelect").value;
-
   if (mode === "replace") {
     if (!confirm("Replace ALL rows for '" + programName + "'? This cannot be undone.")) return;
   }
@@ -293,28 +261,48 @@ async function handleSave() {
   btn.disabled = true;
   btn.textContent = "Saving...";
 
-  try {
-    const rowsAsArrays = state.rows.map(function (r) { return r.cols; });
-    const res = await callAPI({
-      action: "saveProgramRows",
-      key: state.key,
-      programName: programName,
-      mode: mode,
-      rows: JSON.stringify(rowsAsArrays)
-    });
-    if (res && res.ok) {
-      showToast("Saved " + (res.count || rowsAsArrays.length) + " rows to '" + programName + "'");
-      $("pasteArea").value = "";
-      $("previewStep").classList.add("hidden");
-      state.rows = [];
-    } else {
-      showToast((res && res.error) || "Save failed", true);
+  const allRows = state.rows.map(function (r) { return r.cols; });
+  const chunks = [];
+  for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
+    chunks.push(allRows.slice(i, i + CHUNK_SIZE));
+  }
+
+  let totalSaved = 0;
+  let failed = false;
+
+  for (let c = 0; c < chunks.length; c++) {
+    btn.textContent = "Saving " + (c + 1) + "/" + chunks.length + "...";
+    const chunkMode = (c === 0) ? mode : "append";
+    try {
+      const res = await callAPI({
+        action: "saveProgramRows",
+        key: state.key,
+        programName: programName,
+        mode: chunkMode,
+        rows: JSON.stringify(chunks[c])
+      });
+      if (res && res.ok) {
+        totalSaved += (res.count || chunks[c].length);
+      } else {
+        showToast("Chunk " + (c + 1) + " failed: " + ((res && res.error) || "unknown"), true);
+        failed = true;
+        break;
+      }
+    } catch (e) {
+      showToast("Chunk " + (c + 1) + " network error: " + e.message, true);
+      failed = true;
+      break;
     }
-  } catch (e) {
-    showToast("Network error — " + e.message, true);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Save to sheet";
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Save to sheet";
+
+  if (!failed) {
+    showToast("Saved " + totalSaved + " rows to '" + programName + "'");
+    $("pasteArea").value = "";
+    $("previewStep").classList.add("hidden");
+    state.rows = [];
   }
 }
 
@@ -333,10 +321,7 @@ async function callAPI(payload) {
 
 function escapeHtml(s) {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 let toastTimer = null;
