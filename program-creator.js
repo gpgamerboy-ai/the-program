@@ -1,5 +1,5 @@
 // ============================================================
-// PROGRAM CREATOR — program-creator.js v5 (chunked GET save)
+// PROGRAM CREATOR — program-creator.js v6 (pre-flight safety)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -42,7 +42,6 @@ function wireEvents() {
   $("cancelBtn").addEventListener("click", function () {
     $("previewStep").classList.add("hidden");
   });
-  $("saveModeSelect").addEventListener("change", syncSaveModeUI);
 }
 
 async function handleKeySubmit() {
@@ -240,7 +239,123 @@ function renderPreview() {
   }
 }
 
-function syncSaveModeUI() {}
+// ============================================================
+// PRE-FLIGHT SAFETY CHECK
+// ============================================================
+
+async function preflightCheck(programName, chosenMode, rowCount) {
+  // Returns: { action: "proceed", mode: "new"|"append"|"replace" } or { action: "abort" }
+
+  let checkRes;
+  try {
+    checkRes = await callAPI({ action: "checkProgramExists", key: state.key, programName: programName });
+  } catch (e) {
+    showToast("Could not verify program name — network error", true);
+    return { action: "abort" };
+  }
+
+  if (!checkRes || !checkRes.ok) {
+    showToast((checkRes && checkRes.error) || "Could not verify program name", true);
+    return { action: "abort" };
+  }
+
+  const exists = checkRes.exists;
+  const exact = checkRes.exactMatch;
+  const similar = checkRes.similar || [];
+  const existingCount = exact ? exact.count : 0;
+
+  // ---- Case: mode = "new" ----
+  if (chosenMode === "new") {
+    if (exists) {
+      const msg =
+        "Program '" + programName + "' already exists (" + existingCount + " rows).\n\n" +
+        "Click OK to APPEND to the existing program.\n" +
+        "Click Cancel for more options.";
+      if (confirm(msg)) {
+        return { action: "proceed", mode: "append" };
+      }
+      const msg2 =
+        "Replace the existing program instead?\n\n" +
+        "Click OK to ARCHIVE the old rows and save the new ones.\n" +
+        "Click Cancel to abort without saving.";
+      if (confirm(msg2)) {
+        return { action: "proceed", mode: "replace" };
+      }
+      return { action: "abort" };
+    }
+
+    if (similar.length > 0) {
+      const list = similar.map(function (s) { return "  • " + s.name + " (" + s.count + " rows)"; }).join("\n");
+      const msg =
+        "No exact match for '" + programName + "'.\n\n" +
+        "Similar existing programs:\n" + list + "\n\n" +
+        "Save as a new program anyway?";
+      if (!confirm(msg)) {
+        return { action: "abort" };
+      }
+    }
+
+    return { action: "proceed", mode: "new" };
+  }
+
+  // ---- Case: mode = "append" ----
+  if (chosenMode === "append") {
+    if (!exists) {
+      const msg =
+        "No existing program named '" + programName + "'.\n\n" +
+        "Click OK to save as a NEW program.\n" +
+        "Click Cancel to abort and change the name.";
+      if (!confirm(msg)) {
+        return { action: "abort" };
+      }
+      return { action: "proceed", mode: "new" };
+    }
+
+    const total = existingCount + rowCount;
+    const msg =
+      "Append " + rowCount + " rows to '" + programName + "'?\n\n" +
+      "Currently: " + existingCount + " rows\n" +
+      "After append: " + total + " rows\n\n" +
+      "Continue?";
+    if (!confirm(msg)) {
+      return { action: "abort" };
+    }
+    return { action: "proceed", mode: "append" };
+  }
+
+  // ---- Case: mode = "replace" ----
+  if (chosenMode === "replace") {
+    if (!exists) {
+      const msg =
+        "No existing program named '" + programName + "'.\n\n" +
+        "Click OK to save as a NEW program.\n" +
+        "Click Cancel to abort.";
+      if (!confirm(msg)) {
+        return { action: "abort" };
+      }
+      return { action: "proceed", mode: "new" };
+    }
+
+    const msg =
+      "⚠️  REPLACE PROGRAM\n\n" +
+      "This will:\n" +
+      "  1. Archive " + existingCount + " rows for '" + programName + "'\n" +
+      "  2. Delete them from the Programs tab\n" +
+      "  3. Save " + rowCount + " new rows\n\n" +
+      "Archived rows stay in ProgramsArchive and can be restored.\n\n" +
+      "Continue with replace?";
+    if (!confirm(msg)) {
+      return { action: "abort" };
+    }
+    return { action: "proceed", mode: "replace" };
+  }
+
+  return { action: "abort" };
+}
+
+// ============================================================
+// SAVE — with pre-flight + chunked upload
+// ============================================================
 
 async function handleSave() {
   const errorCount = state.rows.filter(function (r) { return r.errors.length > 0; }).length;
@@ -252,11 +367,18 @@ async function handleSave() {
   const programName = $("programNameInput").value.trim();
   if (!programName) { showToast("Enter a program name", true); return; }
 
-  const mode = $("saveModeSelect").value;
-  if (mode === "replace") {
-    if (!confirm("Replace ALL rows for '" + programName + "'? This cannot be undone.")) return;
-  }
+  const chosenMode = $("saveModeSelect").value;
+  const rowCount = state.rows.length;
 
+  // Pre-flight
+  const decision = await preflightCheck(programName, chosenMode, rowCount);
+  if (decision.action === "abort") {
+    showToast("Cancelled — nothing saved");
+    return;
+  }
+  const finalMode = decision.mode;
+
+  // Execute save
   const btn = $("saveBtn");
   btn.disabled = true;
   btn.textContent = "Saving...";
@@ -272,7 +394,7 @@ async function handleSave() {
 
   for (let c = 0; c < chunks.length; c++) {
     btn.textContent = "Saving " + (c + 1) + "/" + chunks.length + "...";
-    const chunkMode = (c === 0) ? mode : "append";
+    const chunkMode = (c === 0) ? finalMode : "append";
     try {
       const res = await callAPI({
         action: "saveProgramRows",
@@ -299,12 +421,16 @@ async function handleSave() {
   btn.textContent = "Save to sheet";
 
   if (!failed) {
-    showToast("Saved " + totalSaved + " rows to '" + programName + "'");
+    showToast("Saved " + totalSaved + " rows to '" + programName + "' (" + finalMode + ")");
     $("pasteArea").value = "";
     $("previewStep").classList.add("hidden");
     state.rows = [];
   }
 }
+
+// ============================================================
+// API
+// ============================================================
 
 async function callAPI(payload) {
   const params = new URLSearchParams();
@@ -331,6 +457,5 @@ function showToast(msg, isError) {
   t.classList.remove("hidden", "error");
   if (isError) t.classList.add("error");
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(function () { t.classList.add("hidden"); }, 2800);
+  toastTimer = setTimeout(function () { t.classList.add("hidden"); }, 3200);
 }
-
