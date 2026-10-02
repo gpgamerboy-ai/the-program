@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER PLAYER — v9 (short-interval cue handling + "Next Up" wording)
+// TIMER PLAYER — v10 (per-interval halfway, no global toggle)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -223,6 +223,11 @@ function isTtsEnabled(iv) {
   return iv.ttsEnabled !== false;
 }
 
+function isHalfwayEnabled(iv) {
+  if (!iv) return true;
+  return iv.halfwayEnabled !== false;
+}
+
 function handleStart() {
   if (!state.timer) {
     showError("Timer is still loading. Please wait a moment and try again.");
@@ -300,13 +305,13 @@ function startTicking() {
 
     const iv = state.structure[state.phaseIndex];
     const ttsOn = isTtsEnabled(iv);
+    const halfwayOn = isHalfwayEnabled(iv);
     const duration = parseInt(iv.duration, 10) || 0;
     const isShort = duration <= 12;
     const countdownOn = shouldCue("countdown3s") && ttsOn;
-    const halfwayOn = shouldCue("halfway");
     const nextUpOn = shouldCue("nextUp");
 
-    // HALFWAY — suppressed for short intervals when countdown is on (they collide)
+    // HALFWAY — per-interval toggle, suppressed on short intervals with countdown on
     const halfwayThreshold = Math.floor(duration / 2);
     if (ttsOn && halfwayOn && !(isShort && countdownOn) && state.timeLeft === halfwayThreshold) {
       speak("Halfway");
@@ -318,10 +323,6 @@ function startTicking() {
     }
 
     // NEXT UP CUE
-    // - Short interval (<=12s) + countdown on: fire at 5s (1s before the 3)
-    // - Short interval (<=12s) + countdown off: fire at 5s
-    // - Long interval (>12s) + countdown on: fire at 4s
-    // - Long interval (>12s) + countdown off: fire at 5s
     const nextIv = state.structure[state.phaseIndex + 1];
     if (!state.nextUpFired && nextIv && nextUpOn && isTtsEnabled(nextIv)) {
       let triggerAt;
