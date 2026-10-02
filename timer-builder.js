@@ -1,5 +1,5 @@
 // ============================================================
-// TIMER BUILDER — v8 (preview in memory + circuit TTS + inner toggles)
+// TIMER BUILDER — v7 (duplicate + auto-copy ID + per-interval halfway)
 // ============================================================
 
 const ENDPOINT = "https://script.google.com/macros/s/AKfycbyiJfEn8fIyMlupk-rrc15BkqVb_UgYsR-wfQQVKgIjH9_t6Xh5KoctO880qBnWa-VInQ/exec";
@@ -143,10 +143,18 @@ function renderTimerList() {
           formatDuration(timer.totalDuration || 0) +
         '</div>' +
       '</div>' +
-      '<button class="timer-card-delete" data-id="' + escapeHtml(timer.timerId) + '">×</button>';
+      '<div class="timer-card-actions">' +
+        '<button class="timer-card-dup" data-id="' + escapeHtml(timer.timerId) + '" title="Duplicate">⧉</button>' +
+        '<button class="timer-card-delete" data-id="' + escapeHtml(timer.timerId) + '" title="Delete">×</button>' +
+      '</div>';
 
     card.querySelector(".timer-card-info").addEventListener("click", function () {
       editExistingTimer(timer);
+    });
+
+    card.querySelector(".timer-card-dup").addEventListener("click", function (e) {
+      e.stopPropagation();
+      duplicateTimer(timer);
     });
 
     card.querySelector(".timer-card-delete").addEventListener("click", function (e) {
@@ -173,7 +181,7 @@ function createNewTimer() {
     totalDuration: 0,
     structure: [],
     ttsTitle: "",
-    ttsCues: { halfway: true, countdown3s: true, nextUp: true },
+    ttsCues: { countdown3s: true, nextUp: true },
     defaultColors: {},
     requiresInput: false,
     inputPrompts: [],
@@ -183,9 +191,51 @@ function createNewTimer() {
   openEditor();
 }
 
+// ============================================================
+// DUPLICATE TIMER
+// ============================================================
+
+function duplicateTimer(timer) {
+  let structure = [];
+  let cues = { countdown3s: true, nextUp: true };
+  let prompts = [];
+
+  try { structure = JSON.parse(timer.structure || "[]"); } catch (e) {}
+  try { cues = JSON.parse(timer.ttsCues || "{}"); } catch (e) {}
+  try { prompts = JSON.parse(timer.inputPrompts || "[]"); } catch (e) {}
+
+  // Deep clone structure
+  const cloned = JSON.parse(JSON.stringify(structure));
+
+  // New timer ID
+  const newId = "T" + Date.now().toString().slice(-8);
+
+  state.editingTimer = {
+    timerId: "",  // blank = will be assigned on save
+    timerName: (timer.timerName || "Untitled") + " (copy)",
+    timerType: timer.timerType || "intervals",
+    totalDuration: timer.totalDuration || 0,
+    structure: cloned,
+    ttsTitle: timer.ttsTitle || "",
+    ttsCues: cues,
+    defaultColors: {},
+    requiresInput: timer.requiresInput || false,
+    inputPrompts: prompts,
+    musicTrack: timer.musicTrack || "",
+    notes: timer.notes || ""
+  };
+
+  openEditor();
+  showToast("Duplicated as new timer — edit and save");
+}
+
+// ============================================================
+// EDIT EXISTING
+// ============================================================
+
 function editExistingTimer(timer) {
   let structure = [];
-  let cues = { halfway: true, countdown3s: true, nextUp: true };
+  let cues = { countdown3s: true, nextUp: true };
   let prompts = [];
 
   try { structure = JSON.parse(timer.structure || "[]"); } catch (e) {}
@@ -217,7 +267,6 @@ function openEditor() {
   $("timerType").value = t.timerType || "intervals";
   $("ttsTitle").value = t.ttsTitle || "";
   $("timerNotes").value = t.notes || "";
-  $("cueHalfway").checked = t.ttsCues.halfway !== false;
   $("cueCountdown").checked = t.ttsCues.countdown3s !== false;
   $("cueNextUp").checked = t.ttsCues.nextUp !== false;
 
@@ -232,10 +281,6 @@ function backToList() {
   loadTimers();
 }
 
-// ============================================================
-// PREVIEW — writes current unsaved structure to localStorage
-// ============================================================
-
 function previewTimer() {
   const t = state.editingTimer;
   if (!t) return;
@@ -247,7 +292,6 @@ function previewTimer() {
     structure: JSON.stringify(t.structure || []),
     ttsTitle: $("ttsTitle").value || "",
     ttsCues: JSON.stringify({
-      halfway: $("cueHalfway").checked,
       countdown3s: $("cueCountdown").checked,
       nextUp: $("cueNextUp").checked
     }),
@@ -311,12 +355,16 @@ function renderIntervalRow(iv, index) {
   const color = iv.color || (iv.type === "circuit" ? "#2e6cf6" : "#b8f52c");
   const isCircuit = iv.type === "circuit";
   const ttsOff = iv.ttsEnabled === false;
+  const halfwayOff = iv.halfwayEnabled === false;
 
   const name = isCircuit
     ? (iv.name || "Circuit")
     : (iv.name || iv.type || "Interval");
 
-  const ttsLabel = ttsOff ? ' <span style="color:#6b7280;font-size:11px;">· mute</span>' : '';
+  const flags = [];
+  if (ttsOff) flags.push("mute");
+  if (halfwayOff && !isCircuit) flags.push("no-half");
+  const flagsLabel = flags.length ? ' <span style="color:#6b7280;font-size:11px;">· ' + flags.join(", ") + '</span>' : '';
 
   const meta = isCircuit
     ? iv.rounds + " rounds × " + (iv.intervals || []).length + " intervals"
@@ -326,7 +374,7 @@ function renderIntervalRow(iv, index) {
     '<div class="drag-handle" title="Drag to reorder">⋮⋮</div>' +
     '<div class="interval-swatch" style="background:' + color + '"></div>' +
     '<div class="interval-info">' +
-      '<div class="interval-name-row">' + escapeHtml(name) + ttsLabel + '</div>' +
+      '<div class="interval-name-row">' + escapeHtml(name) + flagsLabel + '</div>' +
       '<div class="interval-meta">' + escapeHtml(meta) + '</div>' +
     '</div>' +
     '<div class="interval-row-actions">' +
@@ -453,6 +501,7 @@ function openNewIntervalModal() {
   $("ivDuration").value = "";
   $("ivColorCustom").value = "";
   $("ivTtsEnabled").checked = true;
+  $("ivHalfwayEnabled").checked = true;
   state.quickDurationValue = null;
   document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
   selectColorSwatch("#b8f52c");
@@ -468,6 +517,7 @@ function openIntervalModal(index) {
   $("ivDuration").value = iv.duration || "";
   $("ivColorCustom").value = "";
   $("ivTtsEnabled").checked = iv.ttsEnabled !== false;
+  $("ivHalfwayEnabled").checked = iv.halfwayEnabled !== false;
   document.querySelectorAll(".chip").forEach(function (c) { c.classList.remove("selected"); });
   if (iv.color) selectColorSwatch(iv.color);
   else selectColorSwatch("#b8f52c");
@@ -485,6 +535,7 @@ function saveIntervalFromModal() {
   const duration = parseInt($("ivDuration").value, 10);
   const color = $("ivColorCustom").value.trim() || getSelectedColor() || "#b8f52c";
   const ttsEnabled = $("ivTtsEnabled").checked;
+  const halfwayEnabled = $("ivHalfwayEnabled").checked;
 
   if (!name) { showToast("Give the interval a name", true); return; }
   if (!duration || duration < 1) { showToast("Set a duration", true); return; }
@@ -494,7 +545,8 @@ function saveIntervalFromModal() {
     type: type,
     duration: duration,
     color: color,
-    ttsEnabled: ttsEnabled
+    ttsEnabled: ttsEnabled,
+    halfwayEnabled: halfwayEnabled
   };
 
   if (state.editingIntervalIndex >= 0) {
@@ -636,7 +688,8 @@ function addInnerInterval() {
     type: typeChoice,
     duration: duration,
     color: color,
-    ttsEnabled: true
+    ttsEnabled: true,
+    halfwayEnabled: true
   });
 
   renderCircuitInnerList();
@@ -678,6 +731,10 @@ function saveCircuitFromModal() {
   renderIntervalEditorList();
 }
 
+// ============================================================
+// SAVE — with timeout + clipboard copy
+// ============================================================
+
 async function saveTimer() {
   const t = state.editingTimer;
   const name = $("timerName").value.trim();
@@ -686,6 +743,7 @@ async function saveTimer() {
   if (!t.structure.length) { showToast("Add at least one interval", true); return; }
 
   let timerId = t.timerId;
+  const isNew = !timerId;
   if (!timerId) {
     timerId = "T" + Date.now().toString().slice(-8);
   }
@@ -702,7 +760,6 @@ async function saveTimer() {
     structure: JSON.stringify(t.structure),
     ttsTitle: $("ttsTitle").value,
     ttsCues: JSON.stringify({
-      halfway: $("cueHalfway").checked,
       countdown3s: $("cueCountdown").checked,
       nextUp: $("cueNextUp").checked
     }),
@@ -717,19 +774,34 @@ async function saveTimer() {
   btn.disabled = true;
   btn.textContent = "Saving…";
 
+  const controller = new AbortController();
+  const timeout = setTimeout(function () { controller.abort(); }, 20000);
+
   try {
-    const res = await callAPI(payload);
+    const res = await callAPIWithAbort(payload, controller.signal);
+    clearTimeout(timeout);
+
     if (res && res.ok) {
-      showToast("Timer saved");
       t.timerId = timerId;
-      setTimeout(backToList, 600);
+
+      // Copy ID to clipboard
+      try {
+        await navigator.clipboard.writeText(timerId);
+        showToast("Saved. ID copied: " + timerId);
+      } catch (e) {
+        showToast("Saved. ID: " + timerId + " (copy manually)");
+      }
+
+      setTimeout(backToList, 1200);
     } else {
       showToast((res && res.error) || "Save failed", true);
       btn.disabled = false;
       btn.textContent = "Save";
     }
   } catch (e) {
-    showToast("Network error", true);
+    clearTimeout(timeout);
+    const msg = e.name === "AbortError" ? "Save timed out — try again" : "Network error";
+    showToast(msg, true);
     btn.disabled = false;
     btn.textContent = "Save";
   }
@@ -780,6 +852,19 @@ async function callAPI(payload) {
   catch (e) { return { ok: false, error: "Bad response: " + text.slice(0, 120) }; }
 }
 
+async function callAPIWithAbort(payload, signal) {
+  const params = new URLSearchParams();
+  Object.keys(payload).forEach(function (k) {
+    const v = payload[k];
+    if (v !== undefined && v !== null) params.append(k, String(v));
+  });
+  const url = ENDPOINT + "?" + params.toString();
+  const res = await fetch(url, { method: "GET", redirect: "follow", signal: signal });
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch (e) { return { ok: false, error: "Bad response: " + text.slice(0, 120) }; }
+}
+
 function formatDuration(seconds) {
   const s = Math.max(0, seconds | 0);
   const m = Math.floor(s / 60);
@@ -800,5 +885,5 @@ function showToast(msg, isError) {
   t.textContent = msg;
   t.classList.remove("hidden", "error", "warn");
   if (isError) t.classList.add("error");
-  setTimeout(function () { t.classList.add("hidden"); }, 2400);
+  setTimeout(function () { t.classList.add("hidden"); }, 3200);
 }
