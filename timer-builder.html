@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f1115" />
   <title>Timer Builder</title>
-  <link rel="stylesheet" href="timer-builder.css?v=6" />
+  <link rel="stylesheet" href="timer-builder.css?v=5" />
 </head>
 <body>
 
@@ -60,10 +60,6 @@
         <label class="form-label">Voice Cues</label>
         <div class="toggle-row">
           <label class="toggle-label">
-            <input id="cueHalfway" type="checkbox" checked />
-            <span>Halfway alerts</span>
-          </label>
-          <label class="toggle-label">
             <input id="cueCountdown" type="checkbox" checked />
             <span>3-2-1 countdown</span>
           </label>
@@ -92,7 +88,6 @@
     </main>
   </section>
 
-  <!-- INTERVAL EDITOR MODAL -->
   <div id="intervalModal" class="modal hidden">
     <div class="modal-card">
       <button id="intervalClose" class="modal-x">×</button>
@@ -130,11 +125,15 @@
       <div id="colorPicker" class="color-picker"></div>
       <input id="ivColorCustom" type="text" placeholder="#b8f52c" />
 
-      <label class="form-label">Text-to-Speech</label>
+      <label class="form-label">Voice Options</label>
       <div class="toggle-row">
         <label class="toggle-label">
           <input id="ivTtsEnabled" type="checkbox" checked />
-          <span>Speak this interval's name aloud</span>
+          <span>Speak this interval's name</span>
+        </label>
+        <label class="toggle-label">
+          <input id="ivHalfwayEnabled" type="checkbox" checked />
+          <span>Announce "Halfway"</span>
         </label>
       </div>
 
@@ -142,7 +141,6 @@
     </div>
   </div>
 
-  <!-- CIRCUIT EDITOR MODAL -->
   <div id="circuitModal" class="modal hidden">
     <div class="modal-card wide">
       <button id="circuitClose" class="modal-x">×</button>
@@ -180,6 +178,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="timer-builder.js?v=6"></script>
+  <script src="timer-builder.js?v=7"></script>
 </body>
 </html>
